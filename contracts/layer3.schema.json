@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://seedance.local/contracts/layer3.json",
+  "title": "Layer3VideoResult",
+  "type": "object",
+  "required": ["video_url", "model"],
+  "properties": {
+    "video_url": { "type": "string", "format": "uri" },
+    "duration_sec": { "type": "number", "minimum": 0 },
+    "model": { "type": "string" },
+    "meta": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

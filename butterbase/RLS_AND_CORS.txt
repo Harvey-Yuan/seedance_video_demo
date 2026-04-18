@@ -1,0 +1,16 @@
+Butterbase: RLS and CORS for seedance flow
+==========================================
+
+1) Apply schema
+   - Use butterbase/schema/runs_v1.json with MCP apply_schema or REST (dry_run first).
+
+2) Row-level security (when end-user JWT auth is enabled)
+   - MCP: create_user_isolation_policy with table_name "runs", user_column "user_id"
+   - REST: equivalent policy API per Butterbase docs
+   - Note: rows with user_id NULL are not per-user isolated; use only for dev/guest.
+
+3) CORS
+   - Dashboard: add your frontend origin (e.g. http://localhost:5173) to allowed CORS origins for the app.
+
+4) Status enum (application-level; stored as text in runs.status)
+   - draft | layer1_running | layer1_done | layer2_running | layer2_done | layer3_running | done | failed

@@ -10,6 +10,30 @@ import time
 import httpx
 from byteplussdkarkruntime import Ark
 
+DEFAULT_ARK_BASE_URL = "https://ark.ap-southeast.bytepluses.com/api/v3"
+
+
+class SeedanceTaskError(Exception):
+    """Raised when a Seedance content_generation task fails or is cancelled."""
+
+    def __init__(self, message, *, code=None, status=None):
+        super().__init__(message)
+        self.code = code
+        self.status = status
+
+
+def make_ark_client(
+    api_key=None,
+    *,
+    base_url=None,
+):
+    """Build an Ark client for Seedance. Reads ``SEEDANCE_2_0_API`` when api_key omitted."""
+    key = api_key or os.environ.get("SEEDANCE_2_0_API")
+    if not key:
+        raise ValueError("SEEDANCE_2_0_API is not set and no api_key was provided.")
+    url = base_url or os.environ.get("SEEDANCE_ARK_BASE_URL") or DEFAULT_ARK_BASE_URL
+    return Ark(base_url=url, api_key=key)
+
 
 def _clean_kwargs(**kwargs):
     """Omit None so the API receives only explicitly set optional fields."""
@@ -25,12 +49,9 @@ def _build_content(prompt, image_urls=None, image_roles=None, draft_task_id=None
     if len(image_roles) == 1 and len(image_urls) > 1:
         image_roles = image_roles * len(image_urls)
     elif image_roles and len(image_roles) != len(image_urls):
-        print(
-            "Error: --image-role count must be 1 (apply to all), "
-            "or match --image-url count.",
-            file=sys.stderr,
+        raise ValueError(
+            "--image-role count must be 1 (apply to all), or match --image-url count."
         )
-        sys.exit(1)
 
     for i, url in enumerate(image_urls):
         item = {"type": "image_url", "image_url": {"url": url}}
@@ -73,6 +94,8 @@ def generate_video(
     extra_query=None,
     extra_body=None,
     poll_interval=10,
+    verbose=True,
+    on_status=None,
 ):
     image_urls = image_urls or []
     content = _build_content(
@@ -82,21 +105,22 @@ def generate_video(
         draft_task_id=draft_task_id,
     )
 
-    print("Submitting video generation request...")
-    print(f"  Prompt:       {prompt}")
-    print(f"  Model:        {model}")
-    print(f"  Resolution:   {resolution or 'default'}")
-    print(f"  Duration:     {duration}s")
-    print(f"  Ratio:        {ratio}")
-    if image_urls:
-        print(f"  Image URLs:   {len(image_urls)}")
-    if draft_task_id:
-        print(f"  Draft task:   {draft_task_id}")
-    if seed is not None:
-        print(f"  Seed:         {seed}")
-    if frames is not None:
-        print(f"  Frames:       {frames}")
-    print()
+    if verbose:
+        print("Submitting video generation request...")
+        print(f"  Prompt:       {prompt}")
+        print(f"  Model:        {model}")
+        print(f"  Resolution:   {resolution or 'default'}")
+        print(f"  Duration:     {duration}s")
+        print(f"  Ratio:        {ratio}")
+        if image_urls:
+            print(f"  Image URLs:   {len(image_urls)}")
+        if draft_task_id:
+            print(f"  Draft task:   {draft_task_id}")
+        if seed is not None:
+            print(f"  Seed:         {seed}")
+        if frames is not None:
+            print(f"  Frames:       {frames}")
+        print()
 
     create_kwargs = _clean_kwargs(
         model=model,
@@ -123,32 +147,42 @@ def generate_video(
 
     task = client.content_generation.tasks.create(**create_kwargs)
     task_id = task.id
-    print(f"Task created: {task_id}")
+    if verbose:
+        print(f"Task created: {task_id}")
 
     while True:
         result = client.content_generation.tasks.get(task_id=task_id)
         status = result.status
+        if on_status:
+            on_status(status, task_id)
 
         if status == "succeeded":
             video_url = result.content.video_url
-            print(f"\nVideo ready: {video_url}")
+            if verbose:
+                print(f"\nVideo ready: {video_url}")
             return video_url
 
         if status == "failed":
             err = result.error
-            print(f"\nFailed: {err.code} - {err.message}", file=sys.stderr)
-            sys.exit(1)
+            msg = f"{err.code} - {err.message}" if err else "unknown error"
+            if verbose:
+                print(f"\nFailed: {msg}", file=sys.stderr)
+            raise SeedanceTaskError(msg, code=getattr(err, "code", None), status=status)
 
         if status == "cancelled":
-            print("\nTask was cancelled.", file=sys.stderr)
-            sys.exit(1)
+            msg = "Task was cancelled."
+            if verbose:
+                print(f"\n{msg}", file=sys.stderr)
+            raise SeedanceTaskError(msg, status=status)
 
-        print(f"  Status: {status}...")
+        if verbose:
+            print(f"  Status: {status}...")
         time.sleep(poll_interval)
 
 
-def download_video(url, output_path):
-    print(f"Downloading to {output_path}...")
+def download_video(url, output_path, *, verbose=True):
+    if verbose:
+        print(f"Downloading to {output_path}...")
     with httpx.stream("GET", url, follow_redirects=True) as resp:
         resp.raise_for_status()
         total = int(resp.headers.get("content-length", 0))
@@ -157,10 +191,11 @@ def download_video(url, output_path):
             for chunk in resp.iter_bytes(chunk_size=8192):
                 f.write(chunk)
                 downloaded += len(chunk)
-                if total:
+                if total and verbose:
                     pct = downloaded * 100 // total
                     print(f"\r  Progress: {pct}%", end="", flush=True)
-    print(f"\nSaved: {output_path}")
+    if verbose:
+        print(f"\nSaved: {output_path}")
 
 
 def main():
@@ -307,44 +342,43 @@ def main():
     extra_query = _parse_json_obj(args.extra_query, "--extra-query")
     extra_body = _parse_json_obj(args.extra_body, "--extra-body")
 
-    api_key = os.environ.get("SEEDANCE_2_0_API")
-    if not api_key:
-        print("Error: SEEDANCE_2_0_API environment variable not set.", file=sys.stderr)
-        print("Run: source ~/.zshrc", file=sys.stderr)
+    try:
+        client = make_ark_client()
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    client = Ark(
-        base_url="https://ark.ap-southeast.bytepluses.com/api/v3",
-        api_key=api_key,
-    )
-
-    video_url = generate_video(
-        client=client,
-        prompt=args.prompt,
-        model=args.model,
-        ratio=args.aspect_ratio,
-        duration=args.duration,
-        resolution=args.resolution,
-        image_urls=args.image_urls,
-        image_roles=args.image_roles,
-        draft_task_id=args.draft_task_id,
-        safety_identifier=args.safety_identifier,
-        callback_url=args.callback_url,
-        return_last_frame=args.return_last_frame,
-        service_tier=args.service_tier,
-        execution_expires_after=args.execution_expires_after,
-        generate_audio=args.generate_audio,
-        draft=args.draft,
-        camera_fixed=args.camera_fixed,
-        watermark=args.watermark,
-        seed=args.seed,
-        frames=args.frames,
-        create_timeout=args.create_timeout,
-        extra_headers=extra_headers,
-        extra_query=extra_query,
-        extra_body=extra_body,
-        poll_interval=args.poll_interval,
-    )
+    try:
+        video_url = generate_video(
+            client=client,
+            prompt=args.prompt,
+            model=args.model,
+            ratio=args.aspect_ratio,
+            duration=args.duration,
+            resolution=args.resolution,
+            image_urls=args.image_urls,
+            image_roles=args.image_roles,
+            draft_task_id=args.draft_task_id,
+            safety_identifier=args.safety_identifier,
+            callback_url=args.callback_url,
+            return_last_frame=args.return_last_frame,
+            service_tier=args.service_tier,
+            execution_expires_after=args.execution_expires_after,
+            generate_audio=args.generate_audio,
+            draft=args.draft,
+            camera_fixed=args.camera_fixed,
+            watermark=args.watermark,
+            seed=args.seed,
+            frames=args.frames,
+            create_timeout=args.create_timeout,
+            extra_headers=extra_headers,
+            extra_query=extra_query,
+            extra_body=extra_body,
+            poll_interval=args.poll_interval,
+        )
+    except (SeedanceTaskError, ValueError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     if not args.no_download:
         download_video(video_url, args.output)

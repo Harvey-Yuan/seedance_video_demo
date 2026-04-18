@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PipelineErrorCodes",
+  "description": "Application error_code values for runs.error_code and API responses.",
+  "type": "string",
+  "enum": [
+    "VALIDATION",
+    "LAYER1_LLM",
+    "LAYER1_PARSE",
+    "LAYER2_LLM",
+    "LAYER2_IMAGE",
+    "LAYER2_PARSE",
+    "LAYER3_SEEDANCE",
+    "LAYER3_TIMEOUT",
+    "INTERNAL"
+  ]
+}

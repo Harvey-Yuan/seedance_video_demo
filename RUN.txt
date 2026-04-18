@@ -1,0 +1,44 @@
+Seedance 多 Agent 流水线 — 本地运行
+=====================================
+
+1) Python 3.11+，创建虚拟环境并安装依赖：
+
+   cd /path/to/seedance
+   python3.11 -m venv .venv
+   .venv/bin/pip install -r backend/requirements.txt
+
+2) 环境变量（可写入仓库根目录 .env，已由 pydantic-settings 读取）：
+
+   方式 A — Butterbase AI 网关（推荐，与 @butterbase/sdk 一致）：
+   BUTTERBASE_API_URL=https://api.butterbase.ai
+   BUTTERBASE_APP_ID=app_你的应用id
+   BUTTERBASE_API_KEY=bb_sk_...        # 控制台 Service / 平台 API Key
+   # 可选：LAYER1_MODEL=openai/gpt-4o-mini（未设置且仍为默认 gpt-4o-mini 时会自动改为 openai/gpt-4o-mini）
+   # 若网关支持 JSON mode：BUTTERBASE_JSON_RESPONSE=true
+
+   若 A、B 同时配置，Layer1/2 优先走 Butterbase；生图仍仅在使用 OPENAI_API_KEY 时尝试 OpenAI images API。
+
+   方式 B — 直连 OpenAI 或其它 OpenAI 兼容服务：
+   OPENAI_API_KEY=...
+   OPENAI_BASE_URL=https://api.openai.com/v1
+   LAYER1_MODEL=gpt-4o-mini
+   LAYER2_MODEL=gpt-4o-mini
+   SEEDANCE_2_0_API=...         # BytePlus Seedance（与 seedance_video.py 一致）
+   # 可选：IMAGE_MODEL=dall-e-3 等，用于 Layer2 自动补参考图
+   # 可选：SEEDANCE_DURATION=5  SEEDANCE_RATIO=16:9
+
+3) 启动 API（需在仓库根目录，以便 import seedance_video）：
+
+   .venv/bin/uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+
+4) 启动前端（新终端）：
+
+   cd frontend && npm install && npm run dev
+
+   浏览器打开 http://127.0.0.1:5173 ，Vite 已将 /api 代理到 8000。
+
+Butterbase 部署
+---------------
+- 将 butterbase/schema/runs_v1.json 应用到你的 Butterbase 应用（MCP 或 REST）。
+- 按 butterbase/RLS_AND_CORS.txt 配置 RLS 与 CORS。
+- 将本仓库 backend 中的编排逻辑迁移为 Butterbase Serverless Function 时，保持与 contracts/*.schema.json 相同的 JSON 契约即可。

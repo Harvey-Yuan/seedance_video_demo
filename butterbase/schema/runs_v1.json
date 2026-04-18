@@ -1,0 +1,68 @@
+{
+  "name": "seedance_multi_agent_runs_v1",
+  "dry_run": false,
+  "schema": {
+    "tables": {
+      "runs": {
+        "columns": {
+          "id": {
+            "type": "uuid",
+            "primary": true,
+            "default": "gen_random_uuid()"
+          },
+          "user_id": {
+            "type": "uuid",
+            "nullable": true
+          },
+          "status": {
+            "type": "text",
+            "nullable": false,
+            "default": "'draft'"
+          },
+          "drama_input": {
+            "type": "text",
+            "nullable": false
+          },
+          "layer1_output": {
+            "type": "jsonb",
+            "nullable": true
+          },
+          "layer2_output": {
+            "type": "jsonb",
+            "nullable": true
+          },
+          "layer3_output": {
+            "type": "jsonb",
+            "nullable": true
+          },
+          "error_code": {
+            "type": "text",
+            "nullable": true
+          },
+          "error_message": {
+            "type": "text",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "timestamptz",
+            "default": "now()"
+          },
+          "updated_at": {
+            "type": "timestamptz",
+            "default": "now()"
+          }
+        },
+        "indexes": {
+          "idx_runs_user_created": {
+            "columns": ["user_id", "created_at"],
+            "unique": false
+          },
+          "idx_runs_status": {
+            "columns": ["status"],
+            "unique": false
+          }
+        }
+      }
+    }
+  }
+}
