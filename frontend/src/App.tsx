@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { RunRow } from "./types";
+import type { RunRow, RunStatus } from "./types";
 
 const API = import.meta.env.VITE_API_URL ?? "";
 
@@ -16,6 +16,44 @@ async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(t || r.statusText);
   }
   return r.json() as Promise<T>;
+}
+
+/** Layer1 正在生成：draft 或 layer1_running 且尚无输出 */
+function isLayer1Pending(status: RunStatus, row: RunRow | null): boolean {
+  if (status === "failed") return false;
+  if (!row) return true;
+  if (row.layer1_output) return false;
+  return status === "draft" || status === "layer1_running";
+}
+
+function isLayer2Pending(status: RunStatus, row: RunRow): boolean {
+  if (status === "failed") return false;
+  if (!row.layer1_output || row.layer2_output) return false;
+  return status === "layer1_done" || status === "layer2_running";
+}
+
+function isLayer3Pending(status: RunStatus, row: RunRow): boolean {
+  if (status === "failed") return false;
+  if (!row.layer2_output || row.layer3_output) return false;
+  return status === "layer2_done" || status === "layer3_running";
+}
+
+function LayerSpinner({
+  label,
+  hint,
+}: {
+  label: string;
+  hint?: string;
+}) {
+  return (
+    <div className="layer-loading" role="status" aria-live="polite">
+      <span className="layer-spinner" aria-hidden />
+      <div className="layer-loading-text">
+        <span className="layer-loading-label">{label}</span>
+        {hint ? <span className="layer-loading-hint">{hint}</span> : null}
+      </div>
+    </div>
+  );
 }
 
 function statusLabel(s: string): string {
@@ -121,94 +159,133 @@ export default function App() {
         {err ? <p className="error">{err}</p> : null}
       </section>
 
-      {run ? (
+      {runId ? (
         <div className="pipeline">
-          <div className="status-bar">
-            <span className="status-pill">{statusLabel(run.status)}</span>
-            <span className="mono small">{run.id}</span>
-          </div>
-
-          {run.status === "failed" ? (
-            <div className="panel fail">
-              <strong>{run.error_code}</strong>
-              <p>{run.error_message}</p>
-              <p className="small muted">
-                可检查 BUTTERBASE_APP_ID + BUTTERBASE_API_KEY（Butterbase AI 网关）或
-                OPENAI_API_KEY、以及 SEEDANCE_2_0_API 与网络；仅重跑需新增接口（当前为单次流水线）。
-              </p>
-            </div>
-          ) : null}
-
-          {run.layer1_output ? (
-            <article className="panel layer layer1">
-              <h2>Layer1 · 分镜与脚本</h2>
-              <div className="shots">
-                {run.layer1_output.storyboard.map((s, i) => (
-                  <div
-                    key={s.shot_id}
-                    className="shot-card"
-                    style={{ animationDelay: `${i * 0.06}s` }}
-                  >
-                    <span className="shot-id">{s.shot_id}</span>
-                    <p>{s.visual}</p>
-                    <span className="small muted">
-                      ≈ {s.duration_hint_sec}s · {s.camera_notes ?? "—"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <h3 className="subh">脚本</h3>
-              <pre className="script-block">{run.layer1_output.script}</pre>
-              <h3 className="subh">角色</h3>
-              <ul className="char-list">
-                {run.layer1_output.characters.map((c) => (
-                  <li key={c.name}>
-                    <strong>{c.name}</strong> — {c.description}
-                  </li>
-                ))}
-              </ul>
-            </article>
-          ) : null}
-
-          {run.layer2_output ? (
-            <article className="panel layer layer2">
-              <h2>Layer2 · 参考图与 Seedance prompt</h2>
-              <div className="img-row">
-                {run.layer2_output.character_image_urls.map((u) => (
-                  <a key={u} href={u} target="_blank" rel="noreferrer">
-                    <img src={u} alt="character ref" className="ref-img" />
-                  </a>
-                ))}
-              </div>
-              {run.layer2_output.seedance_prompts.map((p) => (
-                <div key={p.segment_id} className="prompt-block">
-                  <span className="mono small">{p.segment_id}</span>
-                  <p>{p.prompt}</p>
-                </div>
-              ))}
-            </article>
-          ) : null}
-
-          {run.layer3_output ? (
-            <article className="panel layer layer3">
-              <h2>Layer3 · 成片</h2>
-              <video
-                className="video"
-                src={run.layer3_output.video_url}
-                controls
-                playsInline
+          {!run ? (
+            <div className="panel layer-pending">
+              <LayerSpinner
+                label="正在连接任务"
+                hint="拉取运行状态，约 1～2 秒"
               />
-              <p className="small muted">
-                model {run.layer3_output.model}
-                {run.layer3_output.duration_sec != null
-                  ? ` · ${run.layer3_output.duration_sec}s`
-                  : ""}
-              </p>
-              {run.layer3_output.meta?.product_note ? (
-                <p className="small">{run.layer3_output.meta.product_note}</p>
+            </div>
+          ) : (
+            <>
+              <div className="status-bar">
+                <span className="status-pill">{statusLabel(run.status)}</span>
+                <span className="mono small">{run.id}</span>
+              </div>
+
+              {run.status === "failed" ? (
+                <div className="panel fail">
+                  <strong>{run.error_code}</strong>
+                  <p>{run.error_message}</p>
+                  <p className="small muted">
+                    可检查 BUTTERBASE_APP_ID + BUTTERBASE_API_KEY（Butterbase AI 网关）或
+                    OPENAI_API_KEY、以及 SEEDANCE_2_0_API 与网络；仅重跑需新增接口（当前为单次流水线）。
+                  </p>
+                </div>
               ) : null}
-            </article>
-          ) : null}
+
+              {run.layer1_output ? (
+                <article className="panel layer layer1">
+                  <h2>Layer1 · 分镜与脚本</h2>
+                  <div className="shots">
+                    {run.layer1_output.storyboard.map((s, i) => (
+                      <div
+                        key={s.shot_id}
+                        className="shot-card"
+                        style={{ animationDelay: `${i * 0.06}s` }}
+                      >
+                        <span className="shot-id">{s.shot_id}</span>
+                        <p>{s.visual}</p>
+                        <span className="small muted">
+                          ≈ {s.duration_hint_sec}s · {s.camera_notes ?? "—"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <h3 className="subh">脚本</h3>
+                  <pre className="script-block">{run.layer1_output.script}</pre>
+                  <h3 className="subh">角色</h3>
+                  <ul className="char-list">
+                    {run.layer1_output.characters.map((c) => (
+                      <li key={c.name}>
+                        <strong>{c.name}</strong> — {c.description}
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ) : isLayer1Pending(run.status, run) ? (
+                <article className="panel layer layer1 layer-pending">
+                  <h2>Layer1 · 分镜与脚本</h2>
+                  <LayerSpinner
+                    label="Layer1 生成中"
+                    hint={
+                      run.status === "draft"
+                        ? "任务已排队，正在调用 LLM 写分镜与台词…"
+                        : "正在生成分镜、脚本、角色与对白（约半分钟）…"
+                    }
+                  />
+                </article>
+              ) : null}
+
+              {run.layer2_output ? (
+                <article className="panel layer layer2">
+                  <h2>Layer2 · 参考图与 Seedance prompt</h2>
+                  <div className="img-row">
+                    {run.layer2_output.character_image_urls.map((u) => (
+                      <a key={u} href={u} target="_blank" rel="noreferrer">
+                        <img src={u} alt="character ref" className="ref-img" />
+                      </a>
+                    ))}
+                  </div>
+                  {run.layer2_output.seedance_prompts.map((p) => (
+                    <div key={p.segment_id} className="prompt-block">
+                      <span className="mono small">{p.segment_id}</span>
+                      <p>{p.prompt}</p>
+                    </div>
+                  ))}
+                </article>
+              ) : isLayer2Pending(run.status, run) ? (
+                <article className="panel layer layer2 layer-pending">
+                  <h2>Layer2 · 参考图与 Seedance prompt</h2>
+                  <LayerSpinner
+                    label="Layer2 生成中"
+                    hint="角色设定、参考图与 Seedance 英文 prompt，请稍候…"
+                  />
+                </article>
+              ) : null}
+
+              {run.layer3_output ? (
+                <article className="panel layer layer3">
+                  <h2>Layer3 · 成片</h2>
+                  <video
+                    className="video"
+                    src={run.layer3_output.video_url}
+                    controls
+                    playsInline
+                  />
+                  <p className="small muted">
+                    model {run.layer3_output.model}
+                    {run.layer3_output.duration_sec != null
+                      ? ` · ${run.layer3_output.duration_sec}s`
+                      : ""}
+                  </p>
+                  {run.layer3_output.meta?.product_note ? (
+                    <p className="small">{run.layer3_output.meta.product_note}</p>
+                  ) : null}
+                </article>
+              ) : isLayer3Pending(run.status, run) ? (
+                <article className="panel layer layer3 layer-pending">
+                  <h2>Layer3 · 成片</h2>
+                  <LayerSpinner
+                    label="Seedance 渲染中"
+                    hint="云端排队与生成可能需 1～3 分钟，请勿关闭页面…"
+                  />
+                </article>
+              ) : null}
+            </>
+          )}
         </div>
       ) : null}
 
@@ -405,6 +482,50 @@ export default function App() {
           max-height: 480px;
           background: #000;
           border-radius: 2px;
+        }
+        .layer-pending {
+          border-style: dashed;
+          border-color: var(--line);
+          background: rgba(22, 19, 17, 0.65);
+        }
+        .layer-pending h2 {
+          margin-bottom: 1rem;
+        }
+        .layer-loading {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.85rem;
+          padding: 0.35rem 0;
+        }
+        .layer-spinner {
+          flex-shrink: 0;
+          width: 22px;
+          height: 22px;
+          margin-top: 2px;
+          border: 2px solid var(--line);
+          border-top-color: var(--accent);
+          border-radius: 50%;
+          animation: layerSpin 0.75s linear infinite;
+        }
+        @keyframes layerSpin {
+          to { transform: rotate(360deg); }
+        }
+        .layer-loading-text {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+          min-width: 0;
+        }
+        .layer-loading-label {
+          font-size: 0.9rem;
+          font-weight: 600;
+          color: var(--ink);
+        }
+        .layer-loading-hint {
+          font-size: 0.78rem;
+          color: var(--muted);
+          line-height: 1.45;
+          max-width: 28rem;
         }
       `}</style>
     </div>
