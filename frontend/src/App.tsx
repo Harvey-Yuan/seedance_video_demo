@@ -3,19 +3,32 @@ import type { RunRow, RunStatus } from "./types";
 
 const API = import.meta.env.VITE_API_URL ?? "";
 
-async function fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(`${API}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(t || r.statusText);
+type FetchJSONInit = RequestInit & { timeoutMs?: number };
+
+async function fetchJSON<T>(path: string, init?: FetchJSONInit): Promise<T> {
+  const { timeoutMs, ...rest } = init ?? {};
+  const ctrl = timeoutMs ? new AbortController() : undefined;
+  const tid =
+    timeoutMs && ctrl
+      ? window.setTimeout(() => ctrl.abort(), timeoutMs)
+      : undefined;
+  try {
+    const r = await fetch(`${API}${path}`, {
+      ...rest,
+      signal: ctrl ? ctrl.signal : rest.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(rest.headers ?? {}),
+      },
+    });
+    if (!r.ok) {
+      const t = await r.text();
+      throw new Error(t || r.statusText);
+    }
+    return r.json() as Promise<T>;
+  } finally {
+    if (tid) window.clearTimeout(tid);
   }
-  return r.json() as Promise<T>;
 }
 
 /** Layer1 正在生成：draft 或 layer1_running 且尚无输出 */
@@ -26,22 +39,22 @@ function isLayer1Pending(status: RunStatus, row: RunRow | null): boolean {
   return status === "draft" || status === "layer1_running";
 }
 
-function isMakeupPending(status: RunStatus, row: RunRow): boolean {
-  if (status === "failed") return false;
-  if (!row.layer1_output || row.makeup_output) return false;
-  return status === "layer1_done" || status === "makeup_running";
-}
-
 function isDirectorPending(status: RunStatus, row: RunRow): boolean {
   if (status === "failed") return false;
-  if (!row.makeup_output || row.layer2_output) return false;
-  return status === "makeup_done" || status === "layer2_running";
+  if (!row.layer1_output || row.layer2_output) return false;
+  return status === "layer1_done" || status === "layer2_running";
+}
+
+function isMakeupPending(status: RunStatus, row: RunRow): boolean {
+  if (status === "failed") return false;
+  if (!row.layer2_output || row.makeup_output) return false;
+  return status === "layer2_done" || status === "makeup_running";
 }
 
 function isLayer3Pending(status: RunStatus, row: RunRow): boolean {
   if (status === "failed") return false;
-  if (!row.layer2_output || row.layer3_output) return false;
-  return status === "layer2_done" || status === "layer3_running";
+  if (!row.layer2_output || !row.makeup_output || row.layer3_output) return false;
+  return status === "makeup_done" || status === "layer3_running";
 }
 
 function LayerSpinner({
@@ -122,7 +135,18 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({ drama }),
       });
-      setRunId(res.id);
+      const id = res.id;
+      setRunId(id);
+      const steps: { path: string; timeoutMs: number }[] = [
+        { path: `/api/runs/${id}/writer`, timeoutMs: 180_000 },
+        { path: `/api/runs/${id}/director`, timeoutMs: 180_000 },
+        { path: `/api/runs/${id}/makeup`, timeoutMs: 600_000 },
+        { path: `/api/runs/${id}/seedance`, timeoutMs: 900_000 },
+      ];
+      for (const { path, timeoutMs } of steps) {
+        await fetchJSON(path, { method: "POST", timeoutMs });
+        await loadRun(id);
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "提交失败");
     } finally {
@@ -135,12 +159,12 @@ export default function App() {
       <header className="hero">
         <p className="eyebrow">Personal drama → Seedance</p>
         <h1 className="title">
-          编剧 / 定妆 / 导演
+          编剧 / 导演 / 定妆
           <span className="title-accent"> 多段成片</span>
         </h1>
         <p className="lede">
-          约 1 分钟体量分镜 · 真人向定妆参考图 · 导演输出多段参数 · Seedance 渲染后 ffmpeg 拼接并上传
-          Storage
+          前端依次调用：编剧 API → 导演 API → 定妆 API → Seedance 成片 API；服务端编排 Butterbase LLM、
+          ModelArk 图像/视频、ffmpeg 与 Storage。
         </p>
         {note ? <p className="product-note">{note}</p> : null}
       </header>
@@ -163,7 +187,7 @@ export default function App() {
           disabled={loading || !drama.trim()}
           onClick={() => void submit()}
         >
-          {loading ? "创建中…" : "开始生成"}
+          {loading ? "流水线执行中…" : "开始生成"}
         </button>
         {err ? <p className="error">{err}</p> : null}
       </section>
@@ -190,7 +214,8 @@ export default function App() {
                   <p>{run.error_message}</p>
                   <p className="small muted">
                     可检查 BUTTERBASE_APP_ID + BUTTERBASE_API_KEY、MAKEUP_IMAGE_MODEL、SEEDANCE_2_0_API、
-                    本机 ffmpeg 与 Storage 配额；仅重跑需新增接口（当前为单次流水线）。
+                    本机 ffmpeg 与 Storage 配额；可分别重试{" "}
+                    <span className="mono">POST /api/runs/&lt;id&gt;/writer</span> 等四步接口。
                   </p>
                 </div>
               ) : null}
@@ -238,37 +263,6 @@ export default function App() {
                 </article>
               ) : null}
 
-              {run.makeup_output ? (
-                <article className="panel layer makeup">
-                  <h2>定妆 · 真人向参考图</h2>
-                  <div className="img-row">
-                    {run.makeup_output.character_image_urls.map((u) => (
-                      <a key={u} href={u} target="_blank" rel="noreferrer">
-                        <img src={u} alt="makeup ref" className="ref-img" />
-                      </a>
-                    ))}
-                  </div>
-                  {run.makeup_output.makeup_prompts?.length ? (
-                    <details className="small muted">
-                      <summary>定妆英文 prompt</summary>
-                      <ul>
-                        {run.makeup_output.makeup_prompts.map((t, i) => (
-                          <li key={i}>{t}</li>
-                        ))}
-                      </ul>
-                    </details>
-                  ) : null}
-                </article>
-              ) : isMakeupPending(run.status, run) ? (
-                <article className="panel layer makeup layer-pending">
-                  <h2>定妆 · 真人向参考图</h2>
-                  <LayerSpinner
-                    label="定妆生成中"
-                    hint="LLM 规划定妆 prompt 后，由 ModelArk 图像接口逐张出图，可能需要数十秒…"
-                  />
-                </article>
-              ) : null}
-
               {run.layer2_output ? (
                 <article className="panel layer layer2">
                   <h2>导演 · 多段 Seedance 计划</h2>
@@ -297,7 +291,38 @@ export default function App() {
                   <h2>导演 · 多段 Seedance 计划</h2>
                   <LayerSpinner
                     label="导演生成中"
-                    hint="结合编剧 JSON 与定妆图，生成每段的英文视频 prompt 与结构化参数…"
+                    hint="根据编剧 JSON 生成多段 Seedance 英文 prompt 与结构化参数…"
+                  />
+                </article>
+              ) : null}
+
+              {run.makeup_output ? (
+                <article className="panel layer makeup">
+                  <h2>定妆 · 真人向参考图</h2>
+                  <div className="img-row">
+                    {run.makeup_output.character_image_urls.map((u) => (
+                      <a key={u} href={u} target="_blank" rel="noreferrer">
+                        <img src={u} alt="makeup ref" className="ref-img" />
+                      </a>
+                    ))}
+                  </div>
+                  {run.makeup_output.makeup_prompts?.length ? (
+                    <details className="small muted">
+                      <summary>定妆英文 prompt</summary>
+                      <ul>
+                        {run.makeup_output.makeup_prompts.map((t, i) => (
+                          <li key={i}>{t}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null}
+                </article>
+              ) : isMakeupPending(run.status, run) ? (
+                <article className="panel layer makeup layer-pending">
+                  <h2>定妆 · 真人向参考图</h2>
+                  <LayerSpinner
+                    label="定妆生成中"
+                    hint="LLM 规划定妆 prompt 后，由 ModelArk 图像接口逐张出图，可能需要数十秒…"
                   />
                 </article>
               ) : null}

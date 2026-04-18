@@ -20,9 +20,9 @@ def _ffmpeg_resolved() -> tuple[bool, str | None]:
 @router.get("/meta")
 def api_meta():
     """
-    说明：所有下游能力（LLM、Ark 图像/视频、Storage）均由 **本服务** 在
-    `POST /api/runs` 触发的流水线内编排调用；客户端不应直连 Butterbase Chat
-    或 BytePlus Ark，除非另行做安全与鉴权设计。
+    说明：Butterbase LLM、ModelArk 图像/视频、Storage 均由 **本服务** 在
+    `POST /api/runs/.../writer|director|makeup|seedance` 或可选 `.../pipeline` 内调用；
+    客户端只打本 API，不应把密钥发到浏览器直连 Ark。
     """
     s = get_settings()
     ffmpeg_ok, ffmpeg_exe = _ffmpeg_resolved()
@@ -35,10 +35,16 @@ def api_meta():
         "orchestration": {
             "service": "seedance-backend",
             "description": (
-                "唯一编排入口：POST /api/runs 在后台依次调用 "
-                "编剧(LLM)→定妆(ModelArk 图像)→导演(LLM)→多段 Seedance(视频)→"
-                "ffmpeg 拼接→（可选）Butterbase Storage 上传。"
+                "POST /api/runs 仅创建 draft；再依次 POST "
+                "/api/runs/{id}/writer → /director → /makeup → /seedance；"
+                "或 POST /api/runs/{id}/pipeline 后台一键跑四步。"
             ),
+            "steps": [
+                "POST /api/runs/{run_id}/writer",
+                "POST /api/runs/{run_id}/director",
+                "POST /api/runs/{run_id}/makeup",
+                "POST /api/runs/{run_id}/seedance",
+            ],
             "poll_run": "GET /api/runs/{run_id}",
         },
         "integrations": {

@@ -89,9 +89,13 @@ def update_run(
     layer3_output: dict[str, Any] | None = None,
     error_code: str | None = None,
     error_message: str | None = None,
+    clear_errors: bool = False,
 ) -> None:
     fields: list[str] = []
     values: list[Any] = []
+    if clear_errors:
+        fields.append("error_code = NULL")
+        fields.append("error_message = NULL")
     if status is not None:
         fields.append("status = ?")
         values.append(status)

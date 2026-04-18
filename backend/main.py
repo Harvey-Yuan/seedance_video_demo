@@ -20,8 +20,9 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Seedance Multi-Agent Flow",
     description=(
-        "对外统一 HTTP 编排：编剧/定妆/导演/多段 Seedance/ffmpeg/Butterbase Storage。"
-        "下游 Butterbase Chat、BytePlus ModelArk、Storage 均由本进程调用，详见 `GET /api/meta`。"
+        "对外 HTTP：POST /api/runs 创建任务后，依次调用 "
+        "/writer、/director、/makeup、/seedance 四步；或 POST .../pipeline 一键后台执行。"
+        "详见 GET /api/meta。"
     ),
     lifespan=lifespan,
 )

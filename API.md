@@ -1,192 +1,143 @@
 # Seedance Backend HTTP API
 
-本仓库 **只通过 FastAPI 对外暴露 HTTP**；Butterbase（LLM + Storage）、BytePlus ModelArk（Seedream 定妆图 + Seedance 视频）、本机 **ffmpeg** 均由 **`backend/pipeline.py`** 在服务端编排调用。前端或其它客户端 **不应** 把 Ark / Butterbase 密钥发到浏览器去直连（除非单独做网关与鉴权）。
+本服务 **只通过 FastAPI** 暴露 HTTP；Butterbase Chat、BytePlus ModelArk（Seedream / Seedance）、本机 ffmpeg、Butterbase Storage 均由 **`backend/pipeline_agents.py`** 在对应路由处理函数内调用。
 
-- **OpenAPI 交互文档**：服务启动后访问 [`/docs`](http://127.0.0.1:8000/docs)（Swagger UI）、[`/redoc`](http://127.0.0.1:8000/redoc)。
-- **机器可读契约**：[`/openapi.json`](http://127.0.0.1:8000/openapi.json)。
+- **Swagger**：[`/docs`](http://127.0.0.1:8000/docs) · **OpenAPI JSON**：[`/openapi.json`](http://127.0.0.1:8000/openapi.json)
 
 ---
 
-## 架构：统一编排入口
+## 架构（四步解耦 + 可选一键）
 
 ```mermaid
-flowchart TB
-  client[客户端]
-  api[FastAPI /api/*]
-  pipe[pipeline.run_pipeline]
-  llm[Butterbase 或 OpenAI\nPOST .../chat/completions]
-  img[ModelArk images.generate\nSeedream 定妆]
-  vid[ModelArk content_generation\nSeedance 视频]
-  ff[本机 ffmpeg 拼接]
-  st[Butterbase Storage\npresign 上传/下载]
-
-  client --> api
-  api -->|POST /api/runs| pipe
-  pipe --> llm
-  pipe --> img
-  pipe --> vid
-  pipe --> ff
-  pipe --> st
+flowchart LR
+  fe[前端]
+  r[POST /api/runs]
+  w[POST .../writer]
+  d[POST .../director]
+  m[POST .../makeup]
+  s[POST .../seedance]
+  fe --> r --> w --> d --> m --> s
 ```
 
-| 能力 | 谁调用 | 实现位置（服务端） |
-|------|--------|---------------------|
-| 编剧 / 定妆规划 / 导演 LLM | FastAPI 后台任务 → `chat_json` | `backend/llm.py` → `httpx` |
-| 定妆图 | 同上 → Ark SDK | `backend/ark_images.py` |
-| 多段视频 | 同上 → Ark SDK | `seedance_video.py` |
-| 拼接 | 同上 → `subprocess` + ffmpeg | `backend/pipeline.py` |
-| 成片上传 | 同上 → Storage REST | `backend/butterbase_storage.py` |
+| 步骤 | 路由 | 依赖 | 写入的主要字段 |
+|------|------|------|------------------|
+| 创建 | `POST /api/runs` | — | `draft` + `drama_input` |
+| 编剧 | `POST /api/runs/{id}/writer` | `draft`、尚无 `layer1_output` | `layer1_output`，`layer1_done` |
+| 导演 | `POST /api/runs/{id}/director` | 已有 `layer1_output` | `layer2_output`，`layer2_done` |
+| 定妆 | `POST /api/runs/{id}/makeup` | 已有 `layer1_output` | `makeup_output`，`makeup_done` |
+| 成片 | `POST /api/runs/{id}/seedance` | 已有 `layer2_output` **与** `makeup_output` | `layer3_output`，`done` / `failed` |
 
-编排状态落在 SQLite，通过 **`GET /api/runs/{id}`** 轮询。
+**推荐调度顺序**：编剧 → 导演 → 定妆 → Seedance（与前端默认一致）。导演 **仅** 消费 `layer1`；定妆 **仅** 消费 `layer1`；成片消费 **导演 + 定妆**。
+
+**可选一键**：`POST /api/runs/{id}/pipeline`（`draft` 且无各阶段输出时）在 **后台** 顺序执行上述四步，行为与前端连调四次等价。
 
 ---
 
-## 路由一览
+## 通用响应
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/api/health` | 探活 + `product_note` |
-| `GET` | `/api/meta` | 编排说明 + 各集成是否就绪（**不含密钥**） |
-| `POST` | `/api/runs` | 创建任务并 **后台** 跑完整流水线 |
-| `GET` | `/api/runs/{run_id}` | 查询任务状态与各阶段 JSON 输出 |
+### `GET /api/runs/{run_id}`
 
-源码目录：`backend/main.py`（挂载路由）、`backend/routers/{health,meta,runs}.py`。
+返回 SQLite 行 JSON（含 `status`、`layer*_output`、`makeup_output`、`error_*` 等）。
+
+### 各 `POST .../writer|director|makeup|seedance`
+
+成功或业务失败均返回 **HTTP 200**，body 形如：
+
+```json
+{
+  "ok": true,
+  "run": { "...": "与 GET /api/runs/{id} 相同 ..." }
+}
+```
+
+若某步内部 `_fail`：`ok` 为 `false`，`run.status` 为 `failed`，见 `run.error_code` / `run.error_message`。
+
+### 常见 HTTP 错误
+
+| HTTP | 场景 |
+|------|------|
+| `404` | `run_id` 不存在 |
+| `400` | 前置输出缺失（如未跑编剧就调导演） |
+| `409` | 重复调用（如已有 `layer1_output` 再调 `writer`） |
 
 ---
 
 ## 1. `GET /api/health`
 
-**作用**：探活 + 返回产品说明（`PRODUCT_NOTE_ZH`）。
-
-**响应 `200` 示例**：
-
-```json
-{
-  "ok": true,
-  "product_note": "编剧约 1 分钟体量；定妆为真人向参考图；…"
-}
-```
+探活 + `product_note`。
 
 ---
 
 ## 2. `GET /api/meta`
 
-**作用**：声明「所有下游均由本服务编排」；返回当前环境是否具备跑通流水线的关键条件（模型名、ffmpeg 是否可解析等）。**不返回** `BUTTERBASE_API_KEY` / `SEEDANCE_2_0_API` 等敏感信息。
-
-**响应 `200` 示例**：
-
-```json
-{
-  "orchestration": {
-    "service": "seedance-backend",
-    "description": "唯一编排入口：POST /api/runs 在后台依次调用 编剧(LLM)→定妆(ModelArk 图像)→导演(LLM)→多段 Seedance(视频)→ffmpeg 拼接→（可选）Butterbase Storage 上传。",
-    "poll_run": "GET /api/runs/{run_id}"
-  },
-  "integrations": {
-    "llm_chat": {
-      "provider": "butterbase",
-      "layer1_model": "openai/gpt-4o-mini",
-      "layer2_model": "openai/gpt-4o-mini",
-      "json_mode_request": false
-    },
-    "byteplus_modelark": {
-      "api_key_configured": true,
-      "video_model": "dreamina-seedance-2-0-260128",
-      "makeup_image_model": "seedream-4-0-250828",
-      "ark_video_base_env": "SEEDANCE_ARK_BASE_URL",
-      "ark_image_base_env": "ARK_IMAGE_BASE_URL"
-    },
-    "ffmpeg": {
-      "available": true,
-      "resolved_executable": "/opt/homebrew/bin/ffmpeg",
-      "config_env": "FFMPEG_PATH"
-    },
-    "butterbase_storage": {
-      "will_upload_after_merge": true,
-      "uses_same_app_and_key_as_llm": true
-    }
-  }
-}
-```
-
-字段说明要点：
-
-- `llm_chat.provider`：`butterbase` \| `openai` \| `none`（`none` 时创建任务后在编剧阶段会因配置报错）。
-- `byteplus_modelark.api_key_configured`：是否配置了 `SEEDANCE_2_0_API`（定妆 + 视频共用）。
-- `ffmpeg.available`：是否在 PATH 或 `FFMPEG_PATH` 指向可执行文件。
+编排说明、各集成是否就绪（**不含密钥**）。字段含 `orchestration.steps`（四步路径列表）。
 
 ---
 
 ## 3. `POST /api/runs`
 
-**作用**：创建一条流水线任务，并在 **BackgroundTasks** 中异步执行完整编排。响应仅含 `id` 与初始 `status`；**进度与结果**请轮询 `GET /api/runs/{id}`。
+**Body**：`{ "drama": "string" }`（1～32000 字符）
 
-**请求头**：`Content-Type: application/json`
+**作用**：仅创建任务，`status=draft`，**不会**自动跑四步。
 
-**请求体**：
-
-| 字段 | 类型 | 约束 |
-|------|------|------|
-| `drama` | string | 必填，去首尾空格后 ≥ 1 字符，最大 32000 |
-
-**响应 `200` 示例**：
-
-```json
-{
-  "id": "351cefa9-89af-4c66-9393-0be1b7aeca7c",
-  "status": "draft"
-}
-```
-
-**错误**：
-
-- 缺 `drama`：`422`（FastAPI 校验 `detail` 数组）。
-- 仅空格：`400`，`{"detail":"drama must not be empty"}`。
+**响应**：`{ "id": "<uuid>", "status": "draft" }`
 
 ---
 
-## 4. `GET /api/runs/{run_id}`
+## 4. `POST /api/runs/{run_id}/writer`
 
-**作用**：查询 SQLite 中该任务的当前状态与各阶段输出。
-
-**响应 `200`**：包含 `status`、`drama_input`、`layer1_output`、`makeup_output`、`layer2_output`、`layer3_output`、`error_code`、`error_message`、`created_at`、`updated_at` 等。
-
-**`status` 可能取值**：
-
-| 值 | 含义 |
-|----|------|
-| `draft` | 已创建，后台任务即将启动 |
-| `layer1_running` / `layer1_done` | 编剧 |
-| `makeup_running` / `makeup_done` | 定妆 |
-| `layer2_running` / `layer2_done` | 导演 |
-| `layer3_running` | 多段 Seedance + ffmpeg +（可选）上传 |
-| `done` | 成功 |
-| `failed` | 失败（见 `error_code` / `error_message`） |
-
-**响应 `404`**：`{"detail":"not found"}`。
+调用 LLM 生成 `layer1_output`（分镜 / 脚本 / 角色 / 对白）。
 
 ---
 
-## 集成与安全说明
+## 5. `POST /api/runs/{run_id}/director`
 
-- **统一入口**：业务上只应调用本文档中的 **`/api/*`**；OpenAPI 在 `/docs`。
-- **无鉴权**：当前版本未挂载 API Key / JWT，仅适合本地或受信网络部署。
-- **CORS**：环境变量 `CORS_ORIGINS`（默认含 Vite 开发地址）。
-- **长任务**：`POST /api/runs` 立即返回；建议每 1～2 秒 `GET` 同一 `id` 直至 `done` 或 `failed`。
+输入 DB 中的 `layer1_output` + `drama_input`，生成 `layer2_output.seedance_prompts`（**不**传入定妆图；不要求 `image_roles`）。
 
 ---
 
-## 快速自测
+## 6. `POST /api/runs/{run_id}/makeup`
+
+输入 `layer1_output`，LLM 规划定妆 → ModelArk `images.generate`，写入 `makeup_output.character_image_urls`。
+
+---
+
+## 7. `POST /api/runs/{run_id}/seedance`
+
+读取 `layer2_output` + `makeup_output`：逐段 `generate_video` → 下载 → **ffmpeg** 拼接 →（若配置 Butterbase）上传 Storage。
+
+**耗时**：与段数、每段时长、队列有关，请使用 **较长 HTTP 超时**（前端已对最后一步使用约 15 分钟 `timeout`）。
+
+**成片阶段说明**：当前实现为降低 Ark `InvalidParameter` 风险，**不再向 Seedance 传 `resolution` 参数**（使用模型默认）。
+
+---
+
+## 8. `POST /api/runs/{run_id}/pipeline`
+
+**条件**：`status=draft` 且 `layer1_output` / `layer2_output` / `makeup_output` / `layer3_output` 均为空。
+
+**作用**：`202` 语义上为已接受（实际返回 JSON `accepted`），在 **BackgroundTasks** 中顺序执行四步；进度仍通过 `GET /api/runs/{id}` 轮询。
+
+---
+
+## 快速自测（curl）
 
 ```bash
 BASE=http://127.0.0.1:8000
+R=$(curl -sS -X POST "$BASE/api/runs" -H "Content-Type: application/json" \
+  -d '{"drama":"你的故事"}')
+ID=$(echo "$R" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
 
-curl -sS "$BASE/api/health" | python3 -m json.tool
-curl -sS "$BASE/api/meta" | python3 -m json.tool
-
-curl -sS -X POST "$BASE/api/runs" \
-  -H "Content-Type: application/json" \
-  -d '{"drama":"你的故事……"}' | python3 -m json.tool
-
-curl -sS "$BASE/api/runs/<RUN_ID>" | python3 -m json.tool
+curl -sS -m 300 -X POST "$BASE/api/runs/$ID/writer" | python3 -m json.tool
+curl -sS -m 300 -X POST "$BASE/api/runs/$ID/director" | python3 -m json.tool
+curl -sS -m 600 -X POST "$BASE/api/runs/$ID/makeup" | python3 -m json.tool
+curl -sS -m 900 -X POST "$BASE/api/runs/$ID/seedance" | python3 -m json.tool
 ```
+
+---
+
+## 安全与部署
+
+- 当前 **无鉴权**，仅适合受信网络。
+- **CORS**：`CORS_ORIGINS` 环境变量。
+- 需本机 **ffmpeg** 在 PATH 或 `FFMPEG_PATH`（见 `GET /api/meta` → `ffmpeg.available`）。
