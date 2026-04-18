@@ -20,9 +20,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Seedance Multi-Agent Flow",
     description=(
-        "对外 HTTP：POST /api/runs 创建任务后，依次调用 "
-        "/writer、/director、/makeup、/seedance 四步；或 POST .../pipeline 一键后台执行。"
-        "详见 GET /api/meta。"
+        "Public HTTP: after POST /api/runs, call /writer, /director, /makeup, /seedance in order; "
+        "or POST .../pipeline to run all four in the background. See GET /api/meta."
     ),
     lifespan=lifespan,
 )

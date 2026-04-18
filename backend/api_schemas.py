@@ -1,4 +1,4 @@
-"""HTTP API 请求/响应模型（供 OpenAPI 与路由复用）。"""
+"""HTTP API request/response models (shared by OpenAPI and routes)."""
 
 from pydantic import BaseModel, Field
 

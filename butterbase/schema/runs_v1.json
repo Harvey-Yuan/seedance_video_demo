@@ -39,6 +39,10 @@
             "type": "jsonb",
             "nullable": true
           },
+          "seedance_job": {
+            "type": "jsonb",
+            "nullable": true
+          },
           "error_code": {
             "type": "text",
             "nullable": true

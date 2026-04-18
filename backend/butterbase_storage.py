@@ -1,4 +1,4 @@
-"""Butterbase Storage：按文档 POST /storage/{app_id}/upload、GET /storage/{app_id}/download/{object_id}。"""
+"""Butterbase Storage: POST /storage/{app_id}/upload, GET /storage/{app_id}/download/{object_id} per docs."""
 
 from __future__ import annotations
 
@@ -73,8 +73,8 @@ def upload_file_and_get_download_url(
     public: bool = True,
 ) -> tuple[str, str]:
     """
-    PUT 本地文件到预签名地址，再 GET 下载 URL。
-    返回 (download_url, object_id)。
+    PUT local file to presigned URL, then GET download URL.
+    Returns (download_url, object_id).
     """
     path = Path(file_path)
     size_bytes = path.stat().st_size

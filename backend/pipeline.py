@@ -1,4 +1,4 @@
-"""向后兼容：旧代码 `from .pipeline import run_pipeline` 仍可用。"""
+"""Backward compatibility: legacy `from .pipeline import run_pipeline` still works."""
 
 from .pipeline_agents import run_full_pipeline as run_pipeline
 

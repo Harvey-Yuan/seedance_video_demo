@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://seedance.local/contracts/layer1.json",
   "title": "Layer1StoryPackage",
-  "description": "约 1 分钟叙事体量：分镜少、每条 duration_hint_sec ≤ 15。",
+  "description": "~1 minute narrative scope: few shots, each duration_hint_sec ≤ 15.",
   "type": "object",
   "required": ["storyboard", "script", "characters", "dialogue"],
   "properties": {

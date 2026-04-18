@@ -1,4 +1,4 @@
-"""ModelArk synchronous image generation (定妆), separate from Seedance video tasks."""
+"""ModelArk synchronous image generation (makeup stills), separate from Seedance video tasks."""
 
 from __future__ import annotations
 

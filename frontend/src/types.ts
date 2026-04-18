@@ -66,6 +66,34 @@ export interface Layer3Output {
   };
 }
 
+export type SeedanceJobPhase =
+  | "idle"
+  | "queued"
+  | "generating"
+  | "merging"
+  | "uploading"
+  | "done"
+  | "failed";
+
+/** GET /api/runs/{id}/seedance/status response (aligned with DB seedance_job) */
+export interface SeedanceJobStatus {
+  phase: SeedanceJobPhase | string;
+  total_segments?: number;
+  segment_urls?: string[];
+  current_segment_index?: number;
+  model?: string;
+  merged_bytes?: number;
+  video_url?: string;
+  storage_object_id?: string;
+  upload_skipped?: boolean;
+  upload_error?: string;
+  error_code?: string;
+  error_message?: string;
+  run_status?: string;
+  message?: string;
+  layer3?: Layer3Output;
+}
+
 export interface RunRow {
   id: string;
   user_id: string | null;
@@ -75,6 +103,7 @@ export interface RunRow {
   makeup_output: MakeupOutput | null;
   layer2_output: Layer2Output | null;
   layer3_output: Layer3Output | null;
+  seedance_job?: Record<string, unknown> | null;
   error_code: string | null;
   error_message: string | null;
   created_at: string;

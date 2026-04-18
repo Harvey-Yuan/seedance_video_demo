@@ -1,4 +1,4 @@
-"""编排与集成状态（不含密钥，供前端/运维探测）。"""
+"""Orchestration and integration status (no secrets; for frontend / ops probes)."""
 
 import shutil
 from pathlib import Path
@@ -20,9 +20,9 @@ def _ffmpeg_resolved() -> tuple[bool, str | None]:
 @router.get("/meta")
 def api_meta():
     """
-    说明：Butterbase LLM、ModelArk 图像/视频、Storage 均由 **本服务** 在
-    `POST /api/runs/.../writer|director|makeup|seedance` 或可选 `.../pipeline` 内调用；
-    客户端只打本 API，不应把密钥发到浏览器直连 Ark。
+    Butterbase LLM, ModelArk image/video, and Storage are invoked **by this service** inside
+    `POST /api/runs/.../writer|director|makeup|seedance` or optional `.../pipeline`.
+    Clients call only this API; do not send API keys to the browser for direct Ark calls.
     """
     s = get_settings()
     ffmpeg_ok, ffmpeg_exe = _ffmpeg_resolved()
@@ -35,9 +35,9 @@ def api_meta():
         "orchestration": {
             "service": "seedance-backend",
             "description": (
-                "POST /api/runs 仅创建 draft；再依次 POST "
-                "/api/runs/{id}/writer → /director → /makeup → /seedance；"
-                "或 POST /api/runs/{id}/pipeline 后台一键跑四步。"
+                "POST /api/runs only creates draft; then POST "
+                "/api/runs/{id}/writer → /director → /makeup → /seedance (seedance returns 202, "
+                "poll seedance/status); or POST /api/runs/{id}/pipeline to run all four in the background."
             ),
             "steps": [
                 "POST /api/runs/{run_id}/writer",
@@ -46,6 +46,7 @@ def api_meta():
                 "POST /api/runs/{run_id}/seedance",
             ],
             "poll_run": "GET /api/runs/{run_id}",
+            "poll_seedance": "GET /api/runs/{run_id}/seedance/status (after POST seedance returns 202)",
         },
         "integrations": {
             "llm_chat": {
