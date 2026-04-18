@@ -24,8 +24,8 @@ const Sidebar = ({ storySnippet }: Props) => {
           <PixelHeart className="h-4 w-4 text-primary-foreground" />
         </div>
         <div>
-          <div className="font-pixel text-[10px] leading-tight text-sidebar-foreground">DATING</div>
-          <div className="font-pixel text-[10px] leading-tight text-primary">STUDIO</div>
+          <div className="font-pixel text-[10px] leading-tight text-sidebar-foreground">DAILY</div>
+          <div className="font-pixel text-[10px] leading-tight text-primary">REEL</div>
         </div>
       </div>
 

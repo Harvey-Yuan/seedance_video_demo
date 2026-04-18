@@ -192,7 +192,7 @@ export function RunProvider({ children }: { children: React.ReactNode }) {
       const res = await api.createRun(drama);
       sessionStorage.setItem("dss-run-id", res.id);
       setRunId(res.id);
-      console.log("[Seedance FE] created run (input saved in sessionStorage dss-story + pipeline will persist each step)", res);
+      console.log("[Seedance FE] created run (input saved in sessionStorage dailyreel-story + pipeline will persist each step)", res);
       void runFourAgents(res.id, drama);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Submit failed");

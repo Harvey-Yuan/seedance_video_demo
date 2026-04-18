@@ -19,7 +19,7 @@ const Landing = () => {
 
   const handleGenerate = async () => {
     const text = story.trim() || SAMPLE_STORY;
-    sessionStorage.setItem("dss-story", text);
+    sessionStorage.setItem("dailyreel-story", text);
     try {
       await submit(text);
       navigate("/workflow");
@@ -39,17 +39,17 @@ const Landing = () => {
           <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground pixel-border">
             <Heart className="h-5 w-5 fill-current" />
           </div>
-          <span className="font-pixel text-xs text-foreground">DSS</span>
+          <span className="font-pixel text-xs text-foreground">DailyReel</span>
         </div>
         <span className="font-pixel text-[10px] text-muted-foreground hidden sm:block">
-          ♡ HACKATHON DEMO ♡
+          STORY → VIRAL REEL
         </span>
       </header>
 
       <main className="relative z-10 mx-auto flex min-h-[calc(100vh-80px)] max-w-3xl flex-col items-center justify-center px-6 pb-16">
         <img
           src={mascot}
-          alt="Pixel heart mascot"
+          alt="DailyReel mascot"
           className="pixelated mb-4 h-24 w-24 animate-bounce-soft"
           width={512}
           height={512}
@@ -58,20 +58,17 @@ const Landing = () => {
         <div className="mb-3 flex items-center gap-2">
           <PixelStar className="h-5 w-5 animate-sparkle" />
           <span className="font-pixel text-[10px] uppercase tracking-widest text-primary">
-            Press Start to Romance
+            From story to reel
           </span>
           <PixelStar className="h-5 w-5 animate-sparkle" style={{ animationDelay: "0.3s" }} />
         </div>
 
         <h1 className="font-pixel text-center text-2xl leading-tight text-foreground text-shadow-pixel sm:text-3xl md:text-4xl">
-          Dating Story
-          <br />
-          <span className="text-primary">Studio</span>
+          DailyReel
         </h1>
 
-        <p className="mt-5 max-w-xl text-center text-base text-muted-foreground md:text-lg">
-          Turn real dating stories into AI-generated short drama videos —
-          <span className="text-foreground font-semibold"> directed by adorable pixel souls.</span>
+        <p className="mt-5 max-w-xl text-center text-base font-medium text-primary md:text-lg">
+          Turn your story into a viral video.
         </p>
 
         <div className="relative mt-10 w-full">
@@ -83,7 +80,7 @@ const Landing = () => {
               <div className="flex items-center gap-2">
                 <BookHeart className="h-4 w-4 text-primary" />
                 <span className="font-pixel text-[10px] uppercase tracking-wider text-foreground/80">
-                  Your Story
+                  Your script
                 </span>
               </div>
               <button
@@ -119,7 +116,7 @@ const Landing = () => {
                 ) : (
                   <Wand2 className="h-5 w-5 transition-transform group-hover:rotate-12" />
                 )}
-                {isSubmitting ? "Creating run…" : "Generate Structure"}
+                {isSubmitting ? "Creating run…" : "Build your reel"}
                 <Sparkles className="h-4 w-4 animate-sparkle" />
               </Button>
             </div>
@@ -128,7 +125,7 @@ const Landing = () => {
 
         <div className="mt-10 flex items-center gap-3 text-xs text-muted-foreground">
           <span className="h-px w-12 bg-border" />
-          <span className="font-pixel text-[9px] uppercase tracking-widest">made with ♡ + pixels</span>
+          <span className="font-pixel text-[9px] uppercase tracking-widest">pixels + AI · DailyReel</span>
           <span className="h-px w-12 bg-border" />
         </div>
       </main>

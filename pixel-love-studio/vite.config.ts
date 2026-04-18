@@ -1,4 +1,5 @@
-import { defineConfig } from "vite";
+import type { Connect } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
@@ -10,6 +11,28 @@ const apiProxy = {
     changeOrigin: true,
   },
 };
+
+/** Serve static deck at http://localhost:8080/slides (public/slides/index.html). */
+function slidesPublicRoute(): Plugin {
+  const rewrite: Connect.NextHandleFunction = (req, _res, next) => {
+    const raw = req.url ?? "";
+    const pathOnly = raw.split("?")[0];
+    if (pathOnly === "/slides" || pathOnly === "/slides/") {
+      const q = raw.includes("?") ? "?" + raw.split("?").slice(1).join("?") : "";
+      req.url = "/slides/index.html" + q;
+    }
+    next();
+  };
+  return {
+    name: "slides-public-route",
+    configureServer(server) {
+      server.middlewares.use(rewrite);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(rewrite);
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -25,7 +48,7 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     proxy: apiProxy,
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [slidesPublicRoute(), react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

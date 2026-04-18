@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DailyReel — Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --background: 340 60% 97%;
+      --foreground: 280 30% 22%;
+      --card: 0 0% 100%;
+      --primary: 340 80% 72%;
+      --primary-foreground: 0 0% 100%;
+      --primary-glow: 340 90% 85%;
+      --secondary: 270 70% 88%;
+      --secondary-foreground: 270 40% 30%;
+      --muted: 320 40% 94%;
+      --muted-foreground: 280 15% 50%;
+      --accent: 200 80% 85%;
+      --accent-foreground: 210 50% 25%;
+      --peach: 18 90% 82%;
+      --border: 320 50% 88%;
+      --shadow-pixel: 4px 4px 0 0 hsl(340 50% 75%);
+      --shadow-pixel-sm: 2px 2px 0 0 hsl(340 50% 75%);
+      --shadow-pixel-lavender: 4px 4px 0 0 hsl(270 50% 75%);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: "Quicksand", system-ui, sans-serif;
+      color: hsl(var(--foreground));
+      background: hsl(var(--background));
+      background-image:
+        radial-gradient(circle at 20% 10%, hsl(340 90% 90% / 0.4), transparent 40%),
+        radial-gradient(circle at 80% 80%, hsl(270 80% 92% / 0.4), transparent 40%),
+        radial-gradient(circle at 50% 50%, hsl(200 80% 92% / 0.2), transparent 60%);
+      background-attachment: fixed;
+      min-height: 100%;
+    }
+
+    .pixel-grid-bg {
+      background-image:
+        linear-gradient(hsl(340 50% 90% / 0.3) 1px, transparent 1px),
+        linear-gradient(90deg, hsl(340 50% 90% / 0.3) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+
+    .font-pixel {
+      font-family: "Press Start 2P", monospace;
+      letter-spacing: 0.02em;
+    }
+
+    .pixel-card {
+      background: hsl(var(--card));
+      border-radius: 1rem;
+      border: 3px solid hsl(var(--foreground) / 0.1);
+      box-shadow: var(--shadow-pixel);
+    }
+
+    .pixel-card-lav {
+      background: hsl(var(--card));
+      border-radius: 1rem;
+      border: 3px solid hsl(var(--foreground) / 0.1);
+      box-shadow: var(--shadow-pixel-lavender);
+    }
+
+    .pixelated {
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    .slide {
+      min-height: 100vh;
+      width: 100%;
+      max-width: 100vw;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: clamp(1.5rem, 4vw, 3rem);
+      position: relative;
+    }
+
+    .slide-num {
+      position: absolute;
+      top: 1.25rem;
+      right: clamp(1rem, 3vw, 2rem);
+      font-size: 9px;
+      color: hsl(var(--muted-foreground));
+    }
+
+    /* Slide 1 */
+    .s1-inner {
+      max-width: 52rem;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .s1-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: hsl(var(--primary));
+      margin-bottom: 1rem;
+    }
+
+    .s1-title {
+      font-size: clamp(1.25rem, 3.5vw, 2rem);
+      line-height: 1.35;
+      color: hsl(var(--foreground));
+      text-shadow: 2px 2px 0 hsl(var(--primary) / 0.25);
+      margin-bottom: 0.75rem;
+    }
+
+    .s1-tag {
+      font-size: clamp(1rem, 2.2vw, 1.35rem);
+      font-weight: 600;
+      color: hsl(var(--primary));
+      margin-bottom: 2rem;
+    }
+
+    .mascot {
+      width: clamp(5rem, 18vw, 7.5rem);
+      height: auto;
+      margin: 0 auto 1.5rem;
+      animation: bounce-soft 2.4s ease-in-out infinite;
+    }
+
+    @keyframes bounce-soft {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .pain-card {
+      text-align: left;
+      max-width: 36rem;
+      margin: 0 auto;
+      padding: 1.5rem 1.75rem;
+    }
+
+    .pain-card h3 {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: hsl(var(--foreground) / 0.85);
+      margin-bottom: 0.75rem;
+    }
+
+    .pain-card p {
+      font-size: clamp(0.95rem, 1.6vw, 1.1rem);
+      line-height: 1.55;
+      color: hsl(var(--muted-foreground));
+      font-weight: 500;
+    }
+
+    .s1-footer {
+      margin-top: 2rem;
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: hsl(var(--muted-foreground));
+    }
+
+    /* Slide 2 */
+    .s2-inner {
+      max-width: 72rem;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .s2-head {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .s2-head h2 {
+      font-size: clamp(0.85rem, 2vw, 1rem);
+      color: hsl(var(--foreground));
+      margin-bottom: 0.35rem;
+    }
+
+    .s2-head p {
+      font-size: clamp(0.8rem, 1.4vw, 0.95rem);
+      color: hsl(var(--muted-foreground));
+      font-weight: 500;
+    }
+
+    .agents {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.5rem;
+      align-items: stretch;
+    }
+
+    @media (max-width: 900px) {
+      .agents {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .agent {
+      padding: 0.85rem 0.65rem 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      border-radius: 1rem;
+      border: 3px solid hsl(var(--foreground) / 0.12);
+      background: hsl(var(--card));
+      box-shadow: var(--shadow-pixel-sm);
+    }
+
+    .agent.d { background: linear-gradient(135deg, hsl(340 90% 88%), hsl(var(--card))); }
+    .agent.v { background: linear-gradient(135deg, hsl(270 70% 92%), hsl(var(--card))); }
+    .agent.p { background: linear-gradient(135deg, hsl(200 80% 92%), hsl(var(--card))); }
+    .agent.s { background: linear-gradient(135deg, hsl(18 90% 90%), hsl(340 90% 96%)); }
+
+    .agent img {
+      width: clamp(3.5rem, 10vw, 4.75rem);
+      height: auto;
+      margin-bottom: 0.5rem;
+    }
+
+    .agent .name {
+      font-size: 9px;
+      text-transform: uppercase;
+      margin-bottom: 0.35rem;
+      color: hsl(var(--foreground));
+    }
+
+    .agent .role {
+      font-size: clamp(0.65rem, 1.1vw, 0.75rem);
+      line-height: 1.35;
+      color: hsl(var(--muted-foreground));
+      font-weight: 600;
+    }
+
+    .flow-hint {
+      text-align: center;
+      margin: 0.85rem 0 1rem;
+      font-size: 10px;
+      color: hsl(var(--primary));
+      letter-spacing: 0.08em;
+    }
+
+    .samples {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .samples {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .sample {
+      padding: 0.65rem 0.75rem;
+      border-radius: 0.75rem;
+      border: 2px solid hsl(var(--border));
+      background: hsl(var(--muted) / 0.5);
+      font-size: clamp(0.62rem, 1vw, 0.72rem);
+      line-height: 1.45;
+      color: hsl(var(--foreground) / 0.88);
+      font-weight: 500;
+    }
+
+    .sample strong {
+      display: block;
+      font-size: 8px;
+      font-family: "Press Start 2P", monospace;
+      text-transform: uppercase;
+      color: hsl(var(--secondary-foreground));
+      margin-bottom: 0.35rem;
+    }
+
+    @media print {
+      html { scroll-snap-type: none; }
+      .slide {
+        page-break-after: always;
+        min-height: auto;
+        height: 100vh;
+      }
+    }
+  </style>
+</head>
+<body class="pixel-grid-bg">
+  <!-- Slide 1: Vision -->
+  <section class="slide" aria-label="Slide 1">
+    <span class="slide-num font-pixel">1 / 2</span>
+    <div class="s1-inner">
+      <img
+        class="mascot pixelated"
+        src="../pixel-love-studio/src/assets/mascot-heart.png"
+        alt="DailyReel mascot"
+        width="256"
+        height="256"
+      />
+      <div class="s1-badge font-pixel">Story → viral reel</div>
+      <h1 class="s1-title font-pixel">DailyReel</h1>
+      <p class="s1-tag">Turn your story into a viral video.</p>
+      <p class="text-base md:text-lg font-semibold text-foreground/90 max-w-xl mx-auto mb-6" style="color: hsl(var(--foreground) / 0.92)">
+        One click — AI turns your everyday moments into a fun, shareable reel.
+      </p>
+      <div class="pain-card pixel-card">
+        <h3 class="font-pixel">The pain point</h3>
+        <p>
+          Something interesting just happened. You want to share it — but a wall of text feels dull, and it does not carry the emotion. DailyReel bridges that gap: your words become a reel easily shareable with motion, mood, and momentum.
+        </p>
+      </div>
+      <div class="s1-footer font-pixel">Pixels + AI · DailyReel</div>
+    </div>
+  </section>
+
+  <!-- Slide 2: Architecture -->
+  <section class="slide" aria-label="Slide 2">
+    <span class="slide-num font-pixel">2 / 2</span>
+    <div class="s2-inner">
+      <div class="s2-head">
+        <h2 class="font-pixel">Pipeline architecture</h2>
+        <p>Four specialized agents — each owns one stage from raw story to finished video.</p>
+      </div>
+
+      <div class="agents">
+        <div class="agent d">
+          <img class="pixelated" src="../pixel-love-studio/src/assets/char-director.png" alt="Director agent" width="128" height="128" />
+          <div class="name font-pixel">Director</div>
+          <div class="role">Story → shots, script, beats (~1 min)</div>
+        </div>
+        <div class="agent v">
+          <img class="pixelated" src="../pixel-love-studio/src/assets/char-visual.png" alt="Visual agent" width="128" height="128" />
+          <div class="name font-pixel">Visual</div>
+          <div class="role">Character &amp; scene reference stills</div>
+        </div>
+        <div class="agent p">
+          <img class="pixelated" src="../pixel-love-studio/src/assets/char-prompt.png" alt="Prompt agent" width="128" height="128" />
+          <div class="name font-pixel">Prompt</div>
+          <div class="role">Assembles I2V-ready segment prompts</div>
+        </div>
+        <div class="agent s">
+          <img class="pixelated" src="../pixel-love-studio/src/assets/char-seedance.png" alt="Seedance agent" width="128" height="128" />
+          <div class="name font-pixel">Seedance</div>
+          <div class="role">Renders final cinematic reel (MP4)</div>
+        </div>
+      </div>
+
+      <p class="flow-hint font-pixel">Director → Visual → Prompt → Seedance</p>
+
+
+    </div>
+  </section>
+</body>
+</html>

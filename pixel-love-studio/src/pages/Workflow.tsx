@@ -19,7 +19,7 @@ const STATUS_LABELS: Record<string, string> = {
   layer2_running: "Directing…",
   layer2_done: "Direction done",
   layer3_running: "Rendering video…",
-  done: "Complete ♡",
+  done: "Complete",
   failed: "Failed",
 };
 
@@ -28,7 +28,7 @@ const Workflow = () => {
   const navigate = useNavigate();
   const { run, status, runId, error, isPipelineRunning } = useRun();
 
-  const story = sessionStorage.getItem("dss-story") ?? "";
+  const story = sessionStorage.getItem("dailyreel-story") ?? "";
   const activeStep = STEPS.find((s) => s.key === active)!;
   const statusLabel = status ? (STATUS_LABELS[status] ?? status) : null;
   const isRunning = status && status !== "done" && status !== "failed";
@@ -59,10 +59,10 @@ const Workflow = () => {
             </Button>
             <div>
               <div className="font-pixel text-[10px] uppercase tracking-wider text-muted-foreground">
-                Studio
+                DailyReel
               </div>
               <h1 className="font-pixel text-sm text-foreground md:text-base">
-                ♡ {activeStep.label} <span className="text-primary">— {activeStep.subtitle}</span>
+                ▸ {activeStep.label} <span className="text-primary">— {activeStep.subtitle}</span>
               </h1>
             </div>
           </div>

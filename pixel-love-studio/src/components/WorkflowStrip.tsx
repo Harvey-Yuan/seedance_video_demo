@@ -123,7 +123,7 @@ const WorkflowStrip = ({ active, onSelect, run = null }: Props) => {
                   </span>
                 ) : isActive ? (
                   <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-primary px-2 py-0.5 font-pixel text-[8px] text-primary-foreground shadow-md">
-                    ♡ ACTIVE
+                    ● ACTIVE
                   </span>
                 ) : null}
               </button>

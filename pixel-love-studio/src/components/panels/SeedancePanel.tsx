@@ -161,12 +161,12 @@ const SeedancePanel = () => {
             <div className="flex items-center justify-center bg-gradient-to-br from-secondary/30 to-primary-glow/30 p-6">
               <div className="relative w-full max-w-[260px] aspect-[9/16] overflow-hidden rounded-2xl border-[4px] border-foreground/15 bg-gradient-to-br from-foreground/90 via-secondary-foreground/40 to-primary/60 pixel-grid-bg shadow-[6px_6px_0_0_hsl(var(--primary)/0.4)]">
                 <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 via-transparent to-transparent" />
-                <div className="absolute top-3 left-3 rounded bg-card/20 px-2 py-0.5 font-pixel text-[8px] text-card backdrop-blur">♡ DRAMA</div>
+                <div className="absolute top-3 left-3 rounded bg-card/20 px-2 py-0.5 font-pixel text-[8px] text-card backdrop-blur">REEL</div>
                 <div className="absolute bottom-3 left-3 right-3 text-card text-xs leading-snug">
                   <p className="italic opacity-90">"i was wrong. i miss you."</p>
                 </div>
                 <button
-                  onClick={() => toast.success("Playing preview ♡")}
+                  onClick={() => toast.success("Playing preview")}
                   className="absolute inset-0 grid place-items-center group"
                 >
                   <span className="grid h-14 w-14 place-items-center rounded-full border-[3px] border-card bg-primary text-primary-foreground shadow-lg transition-transform group-hover:scale-110">
@@ -191,7 +191,7 @@ const SeedancePanel = () => {
                 </a>
               </Button>
             ) : (
-              <Button onClick={() => toast.success("Preview ♡")} className="gap-1.5 rounded-xl border-[3px] border-foreground/15 bg-primary text-primary-foreground shadow-[3px_3px_0_0_hsl(var(--primary)/0.4)]">
+              <Button onClick={() => toast.success("Preview ready")} className="gap-1.5 rounded-xl border-[3px] border-foreground/15 bg-primary text-primary-foreground shadow-[3px_3px_0_0_hsl(var(--primary)/0.4)]">
                 <Play className="h-4 w-4" /> Preview
               </Button>
             )}
