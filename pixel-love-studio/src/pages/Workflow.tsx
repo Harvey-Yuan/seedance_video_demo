@@ -26,7 +26,7 @@ const STATUS_LABELS: Record<string, string> = {
 const Workflow = () => {
   const [active, setActive] = useState<StepKey>("director");
   const navigate = useNavigate();
-  const { run, status, runId, error } = useRun();
+  const { run, status, runId, error, isPipelineRunning } = useRun();
 
   const story = sessionStorage.getItem("dss-story") ?? "";
   const activeStep = STEPS.find((s) => s.key === active)!;
@@ -69,8 +69,8 @@ const Workflow = () => {
 
           {runId && statusLabel ? (
             <span className="hidden md:flex items-center gap-1.5 rounded-full border-2 border-border bg-card px-3 py-1 font-pixel text-[9px] text-foreground/70">
-              {isRunning && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
-              {statusLabel}
+              {(isRunning || isPipelineRunning) && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
+              {isPipelineRunning ? "Agents running…" : statusLabel}
             </span>
           ) : !runId ? (
             <span className="hidden md:flex items-center gap-1.5 rounded-full border-2 border-border bg-card px-3 py-1 font-pixel text-[9px] text-foreground/70">

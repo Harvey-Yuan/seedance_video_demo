@@ -83,8 +83,27 @@ class MakeupPlanItem(BaseModel):
         return _coerce_str(v)
 
 
+class MakeupPlanSceneItem(BaseModel):
+    """Wide / environment still aligned to a storyboard shot (no character portrait)."""
+
+    shot_id: str
+    prompt_en: str
+
+    model_config = {"extra": "allow"}
+
+    @field_validator("shot_id", "prompt_en", mode="before")
+    @classmethod
+    def _strings(cls, v):
+        return _coerce_str(v)
+
+
 class MakeupPlan(BaseModel):
     items: list[MakeupPlanItem] = Field(default_factory=list, min_length=1, max_length=6)
+    scene_items: list[MakeupPlanSceneItem] = Field(
+        default_factory=list,
+        max_length=6,
+        description="1–3 wide establishing shots for Scene Art; may be empty (server falls back).",
+    )
 
     model_config = {"extra": "allow"}
 
@@ -92,6 +111,8 @@ class MakeupPlan(BaseModel):
 class MakeupOutput(BaseModel):
     character_image_urls: list[str] = Field(default_factory=list)
     makeup_prompts: list[str] = Field(default_factory=list)
+    scene_image_urls: list[str] = Field(default_factory=list)
+    scene_prompts: list[str] = Field(default_factory=list)
     meta: Optional[dict[str, Any]] = None
 
     model_config = {"extra": "allow"}

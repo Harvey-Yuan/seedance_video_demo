@@ -24,14 +24,18 @@ function stepState(key: StepKey, run: RunRow | null): "done" | "running" | "pend
   if (key === "visual") {
     if (run.makeup_output) return "done";
     if (s === "makeup_running") return "running";
+    if (run.layer1_output && !run.makeup_output && s !== "failed") return "running";
   }
   if (key === "prompt") {
+    // Require makeup before showing Prompt as done (matches pipeline order)
+    if (!run.makeup_output) return "pending";
     if (run.layer2_output) return "done";
     if (s === "layer2_running") return "running";
   }
   if (key === "seedance") {
     if (run.layer3_output) return "done";
     if (s === "layer3_running") return "running";
+    if (!run.layer2_output || !run.makeup_output) return "pending";
   }
   return "pending";
 }

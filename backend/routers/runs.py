@@ -1,7 +1,8 @@
 import logging
 
+import httpx
 from fastapi import APIRouter, BackgroundTasks, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from .. import db
 from ..api_schemas import CreateRunBody, CreateRunResponse
@@ -72,7 +73,7 @@ async def _run_safe_full(run_id: str):
 
 @router.post("/runs", response_model=CreateRunResponse)
 async def create_run(body: CreateRunBody):
-    """Create run (draft) only; does not auto-run pipeline—call writer / director / makeup / seedance in order."""
+    """Create run (draft) only; does not auto-run pipeline—call writer / makeup / director / seedance in order."""
     if not body.drama.strip():
         raise HTTPException(status_code=400, detail="drama must not be empty")
     run_id = db.create_run(body.drama.strip(), user_id=None)
@@ -190,9 +191,19 @@ async def step_seedance(run_id: str, background_tasks: BackgroundTasks):
         raise HTTPException(409, detail="seedance job already running")
 
     settings = get_settings()
-    layer2 = Layer2Output.model_validate(row["layer2_output"])
     makeup = MakeupOutput.model_validate(row["makeup_output"])
-    char_urls = list(makeup.character_image_urls)
+    char_urls = [u for u in (makeup.character_image_urls or []) if u and str(u).strip()]
+    if not char_urls:
+        raise HTTPException(
+            400,
+            detail="makeup_output.character_image_urls must be non-empty before seedance",
+        )
+    layer2 = Layer2Output.model_validate(row["layer2_output"])
+    if not layer2.seedance_prompts:
+        raise HTTPException(
+            400,
+            detail="layer2_output.seedance_prompts must be non-empty before seedance",
+        )
     layer2_dict = dict(row["layer2_output"])
     layer2_dict["character_image_urls"] = char_urls
     n = len(layer2.seedance_prompts)
@@ -220,6 +231,32 @@ async def step_seedance(run_id: str, background_tasks: BackgroundTasks):
             "poll_hint": "GET status_url every 2–5s until phase is done or failed",
         },
     )
+
+
+@router.get("/runs/{run_id}/merged-video")
+async def merged_video_proxy(run_id: str):
+    """
+    Stream final MP4 through this API so the browser can play it (some Ark/CDN URLs block
+    cross-origin playback or need headers; same-origin URL fixes <video> issues).
+    """
+    row = _run_row(run_id)
+    l3 = row.get("layer3_output") or {}
+    url = l3.get("video_url")
+    if not url or not isinstance(url, str):
+        raise HTTPException(404, detail="no merged video")
+
+    async def stream():
+        async with httpx.AsyncClient(timeout=300.0, follow_redirects=True) as client:
+            async with client.stream(
+                "GET",
+                url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; SeedanceStudio/1.0)"},
+            ) as resp:
+                resp.raise_for_status()
+                async for chunk in resp.aiter_bytes(chunk_size=64 * 1024):
+                    yield chunk
+
+    return StreamingResponse(stream(), media_type="video/mp4")
 
 
 @router.get("/runs/{run_id}")

@@ -1,6 +1,6 @@
 """
 Four orchestration steps callable independently (triggered from FastAPI routes).
-Suggested order: writer → director → makeup → Seedance merge (matches frontend).
+Suggested order: writer → makeup → director → Seedance merge (visual refs before prompts consumed by merge).
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ from .contracts import (
     Layer3Output,
     MakeupOutput,
     MakeupPlan,
+    MakeupPlanSceneItem,
     SeedancePromptSegment,
 )
 from .llm import chat_json
@@ -55,14 +56,18 @@ Hard requirements (invalid if violated):
 
 Match the user's input language. Keep implied storyboard duration sum roughly in the 55–75s range."""
 
-MAKEUP_PLAN_SYSTEM = """You are a film makeup / look coordinator. Input is Layer1 JSON (characters and storyboard).
+MAKEUP_PLAN_SYSTEM = """You are a film makeup / look coordinator and location stills planner. Input is Layer1 JSON (characters and storyboard).
 Output **strict JSON** only (no Markdown):
-{ "items": [ { "character_key": "stable English key aligned with character name", "prompt_en": "English makeup still prompt" }, ... ] }
+{
+  "items": [ { "character_key": "stable English key aligned with character name", "prompt_en": "English makeup still prompt" }, ... ],
+  "scene_items": [ { "shot_id": "must match a storyboard shot_id", "prompt_en": "English wide establishing / environment still, photoreal cinematic, no anime" }, ... ]
+}
 
 Rules:
-1) **1–6** items, prioritize leads; each prompt_en is a **photorealistic cinematic portrait** still, **no anime / cartoon / 3D doll**.
-2) Simple background, clear light, consistent for later I2V; no text in frame.
-3) No URLs; JSON only."""
+1) **items**: **1–6** entries; each prompt_en is a **photorealistic cinematic portrait** still for a character, **no anime / cartoon / 3D doll**.
+2) **scene_items**: **1–3** entries for key storyboard beats — **environment / wide location** shots (café, bedroom, street), minimal or no faces; match shot_id from Layer1 storyboard; no text in frame.
+3) Simple lighting; consistent look for later I2V.
+4) No URLs; JSON only."""
 
 # Director consumes writer JSON only (makeup is another step; no makeup URLs here).
 LAYER2_SYSTEM_SOLO = """You are a live-action film director and Seedance prompt engineer.
@@ -296,12 +301,42 @@ async def run_makeup_agent(run_id: str) -> None:
             if u:
                 urls.append(u)
                 prompts_used.append(it.prompt_en)
+
+        scene_urls: list[str] = []
+        scene_prompts_used: list[str] = []
+        layer1_obj = Layer1Output.model_validate(layer1_dict)
+        scene_items: list[MakeupPlanSceneItem] = list(plan.scene_items)
+        if not scene_items and layer1_obj.storyboard:
+            scene_items = [
+                MakeupPlanSceneItem(
+                    shot_id=s.shot_id,
+                    prompt_en=(
+                        "Photoreal cinematic wide establishing shot, natural light, no text in frame: "
+                        + (s.visual or "")[:500]
+                    ),
+                )
+                for s in layer1_obj.storyboard[:3]
+            ]
+
+        for si in scene_items:
+            u = generate_image_url_sync(
+                client,
+                model=settings.makeup_image_model,
+                prompt=si.prompt_en,
+            )
+            if u:
+                scene_urls.append(u)
+                scene_prompts_used.append(si.prompt_en)
+
         return MakeupOutput(
             character_image_urls=urls,
             makeup_prompts=prompts_used,
+            scene_image_urls=scene_urls,
+            scene_prompts=scene_prompts_used,
             meta={
                 "model": settings.makeup_image_model,
                 "character_keys": [it.character_key for it in plan.items],
+                "scene_shot_ids": [si.shot_id for si in scene_items],
             },
         )
 
@@ -545,11 +580,11 @@ async def run_full_pipeline(run_id: str) -> None:
     row = db.get_run(run_id)
     if row and row["status"] == "failed":
         return
-    await run_director_agent(run_id)
+    await run_makeup_agent(run_id)
     row = db.get_run(run_id)
     if row and row["status"] == "failed":
         return
-    await run_makeup_agent(run_id)
+    await run_director_agent(run_id)
     row = db.get_run(run_id)
     if row and row["status"] == "failed":
         return

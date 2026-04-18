@@ -36,13 +36,13 @@ def api_meta():
             "service": "seedance-backend",
             "description": (
                 "POST /api/runs only creates draft; then POST "
-                "/api/runs/{id}/writer → /director → /makeup → /seedance (seedance returns 202, "
+                "/api/runs/{id}/writer → /makeup → /director → /seedance (seedance returns 202, "
                 "poll seedance/status); or POST /api/runs/{id}/pipeline to run all four in the background."
             ),
             "steps": [
                 "POST /api/runs/{run_id}/writer",
-                "POST /api/runs/{run_id}/director",
                 "POST /api/runs/{run_id}/makeup",
+                "POST /api/runs/{run_id}/director",
                 "POST /api/runs/{run_id}/seedance",
             ],
             "poll_run": "GET /api/runs/{run_id}",

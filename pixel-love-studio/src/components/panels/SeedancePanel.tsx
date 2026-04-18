@@ -1,6 +1,8 @@
-import { Play, Download, Film, Clock, Sparkles, Loader2, AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { Play, Download, Film, Clock, Sparkles, Loader2, AlertCircle, ExternalLink } from "lucide-react";
 import { seedanceOutput } from "@/lib/mockData";
 import { useRun } from "@/context/RunContext";
+import { buildApiUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -16,6 +18,7 @@ const PanelSkeleton = ({ label, hint }: { label: string; hint?: string }) => (
 
 const SeedancePanel = () => {
   const { runId, run, status } = useRun();
+  const [videoFallbackDirect, setVideoFallbackDirect] = useState(false);
 
   const layer3 = run?.layer3_output ?? null;
   const layer2 = run?.layer2_output ?? null;
@@ -39,6 +42,9 @@ const SeedancePanel = () => {
     : mock.scenes.map((s) => ({ ...s, done: true }));
 
   const videoUrl = layer3?.video_url;
+  /** Same-origin proxy avoids CDN blocking cross-origin video playback */
+  const proxyPlayUrl = runId && videoUrl ? buildApiUrl(`/api/runs/${runId}/merged-video`) : null;
+  const playUrl = videoFallbackDirect ? videoUrl : proxyPlayUrl ?? videoUrl;
   const modelName = layer3?.model ?? mock.model;
   const durationSec = layer3?.duration_sec;
   const uploadError = layer3?.meta?.upload_error;
@@ -123,13 +129,33 @@ const SeedancePanel = () => {
           </div>
 
           {videoUrl ? (
-            <div className="p-4">
+            <div className="space-y-3 p-4">
               <video
-                src={videoUrl}
+                key={playUrl ?? "v"}
+                src={playUrl ?? undefined}
                 controls
                 playsInline
+                preload="metadata"
+                referrerPolicy="no-referrer"
                 className="w-full rounded-xl border-[3px] border-border bg-black"
+                onError={() => {
+                  if (!videoFallbackDirect && videoUrl) setVideoFallbackDirect(true);
+                }}
               />
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                {proxyPlayUrl && !videoFallbackDirect && (
+                  <span className="font-pixel text-[9px]">Streaming via API proxy</span>
+                )}
+                {videoFallbackDirect && <span className="font-pixel text-[9px] text-amber-600">Direct URL (proxy failed)</span>}
+                <a
+                  href={videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 font-pixel text-[9px] text-primary underline"
+                >
+                  <ExternalLink className="h-3 w-3" /> Open source URL
+                </a>
+              </div>
             </div>
           ) : (
             <div className="flex items-center justify-center bg-gradient-to-br from-secondary/30 to-primary-glow/30 p-6">
@@ -160,7 +186,7 @@ const SeedancePanel = () => {
                 asChild
                 className="gap-1.5 rounded-xl border-[3px] border-foreground/15 bg-primary text-primary-foreground shadow-[3px_3px_0_0_hsl(var(--primary)/0.4)]"
               >
-                <a href={videoUrl} download>
+                <a href={playUrl ?? videoUrl} download="seedance-output.mp4">
                   <Download className="h-4 w-4" /> Download
                 </a>
               </Button>

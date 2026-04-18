@@ -81,7 +81,12 @@ class Settings(BaseSettings):
     )
     ffmpeg_path: str = Field(default="ffmpeg", validation_alias="FFMPEG_PATH")
     cors_origins: str = Field(
-        default="http://localhost:5173,http://127.0.0.1:5173",
+        default=(
+            "http://localhost:5173,http://127.0.0.1:5173,"
+            "http://localhost:8080,http://127.0.0.1:8080,"
+            "http://localhost:8081,http://127.0.0.1:8081,"
+            "http://localhost:4173,http://127.0.0.1:4173"
+        ),
         validation_alias="CORS_ORIGINS",
     )
     product_note: str = Field(

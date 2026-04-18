@@ -1,41 +1,124 @@
-import { Copy, Check, Camera, Package, Code2, Loader2 } from "lucide-react";
+import { Copy, Check, Code2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { promptOutput } from "@/lib/mockData";
 import { useRun } from "@/context/RunContext";
 import { toast } from "sonner";
+import type { SeedancePromptSegment } from "@/lib/api";
 
-const PromptCard = ({ title, prompt, camera }: { title: string; prompt: string; camera?: string }) => {
-  const [copied, setCopied] = useState(false);
-  const copy = () => {
-    navigator.clipboard.writeText(prompt);
-    setCopied(true);
-    toast.success("Prompt copied ♡");
-    setTimeout(() => setCopied(false), 1500);
+const KNOWN_SEGMENT_KEYS = new Set([
+  "segment_id",
+  "prompt",
+  "segment_goal",
+  "camera_notes",
+  "image_refs",
+  "image_roles",
+  "duration_sec",
+  "ratio",
+  "resolution",
+  "generate_audio",
+  "camera_fixed",
+  "seed",
+]);
+
+function formatValue(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+function segmentParamRows(seg: SeedancePromptSegment): { key: string; value: string }[] {
+  const rows: { key: string; value: string }[] = [];
+  const push = (key: string, v: unknown) => {
+    if (v === null || v === undefined) return;
+    if (typeof v === "string" && !v.trim()) return;
+    if (Array.isArray(v) && v.length === 0) return;
+    rows.push({ key, value: formatValue(v) });
   };
+
+  push("segment_goal", seg.segment_goal);
+  push("camera_notes", seg.camera_notes);
+  push("duration_sec", seg.duration_sec);
+  push("ratio", seg.ratio);
+  push("resolution", seg.resolution);
+  push("image_refs", seg.image_refs);
+  push("image_roles", seg.image_roles);
+  push("generate_audio", seg.generate_audio);
+  push("camera_fixed", seg.camera_fixed);
+  push("seed", seg.seed);
+
+  const raw = seg as Record<string, unknown>;
+  for (const k of Object.keys(raw)) {
+    if (KNOWN_SEGMENT_KEYS.has(k)) continue;
+    const v = raw[k];
+    if (v === null || v === undefined) continue;
+    rows.push({ key: k, value: formatValue(v) });
+  }
+
+  return rows;
+}
+
+const SegmentCard = ({ seg }: { seg: SeedancePromptSegment }) => {
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [copiedJson, setCopiedJson] = useState(false);
+  const paramRows = segmentParamRows(seg);
+
+  const copyPrompt = () => {
+    navigator.clipboard.writeText(seg.prompt);
+    setCopiedPrompt(true);
+    toast.success("Prompt copied");
+    setTimeout(() => setCopiedPrompt(false), 1500);
+  };
+
+  const copyJson = () => {
+    navigator.clipboard.writeText(JSON.stringify(seg, null, 2));
+    setCopiedJson(true);
+    toast.success("Segment JSON copied");
+    setTimeout(() => setCopiedJson(false), 1500);
+  };
+
   return (
     <div className="overflow-hidden rounded-xl border-[3px] border-border bg-card">
-      <div className="flex items-center justify-between border-b-2 border-border bg-muted/50 px-4 py-2">
-        <div className="flex items-center gap-2">
-          <Code2 className="h-3.5 w-3.5 text-primary" />
-          <span className="font-pixel text-[10px] uppercase text-foreground">{title}</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-border bg-muted/50 px-4 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <Code2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+          <span className="truncate font-pixel text-[10px] uppercase text-foreground">{seg.segment_id}</span>
         </div>
-        <button
-          onClick={copy}
-          className="flex items-center gap-1 rounded-md border-2 border-border bg-card px-2 py-1 font-pixel text-[9px] hover:bg-primary hover:text-primary-foreground transition-colors"
-        >
-          {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-          {copied ? "OK" : "COPY"}
-        </button>
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            onClick={copyPrompt}
+            className="flex items-center gap-1 rounded-md border-2 border-border bg-card px-2 py-1 font-pixel text-[9px] hover:bg-primary hover:text-primary-foreground transition-colors"
+          >
+            {copiedPrompt ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {copiedPrompt ? "OK" : "Copy prompt"}
+          </button>
+          <button
+            type="button"
+            onClick={copyJson}
+            className="flex items-center gap-1 rounded-md border-2 border-border bg-card px-2 py-1 font-pixel text-[9px] hover:bg-secondary hover:text-secondary-foreground transition-colors"
+          >
+            {copiedJson ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {copiedJson ? "OK" : "Copy JSON"}
+          </button>
+        </div>
       </div>
       <div className="bg-gradient-to-br from-card to-muted/30 p-4">
-        <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-foreground/90">{prompt}</pre>
-        {camera && (
-          <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Camera className="h-3 w-3" />
-            <span className="italic">{camera}</span>
-          </div>
-        )}
+        <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-foreground/90">{seg.prompt}</pre>
       </div>
+      {paramRows.length > 0 ? (
+        <div className="border-t-2 border-border bg-muted/20 px-4 py-3">
+          <div className="mb-2 font-pixel text-[9px] uppercase tracking-wider text-muted-foreground">Parameters</div>
+          <dl className="space-y-2 font-mono text-[11px]">
+            {paramRows.map(({ key, value }) => (
+              <div key={key} className="grid gap-1 sm:grid-cols-[minmax(0,140px)_1fr] sm:gap-3">
+                <dt className="shrink-0 text-primary/90">{key}</dt>
+                <dd className="min-w-0 break-all text-foreground/85">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -55,17 +138,18 @@ const PromptPanel = () => {
 
   const layer2 = run?.layer2_output ?? null;
   const isLoading = !!runId && !layer2 && (
-    status === "draft" || status === "layer1_running" || status === "layer1_done" ||
-    status === "makeup_running" || status === "makeup_done" || status === "layer2_running"
+    status === "draft" ||
+    status === "layer1_running" ||
+    status === "layer1_done" ||
+    status === "makeup_running" ||
+    status === "makeup_done" ||
+    status === "layer2_running"
   );
 
   if (isLoading) {
     return (
       <div className="space-y-4 animate-fade-in">
-        <PanelSkeleton
-          label="Assembling prompts…"
-          hint="Director LLM is combining storyboard + makeup refs into per-segment video prompts."
-        />
+        <PanelSkeleton label="Director: building seedance_prompts…" hint="LLM output for each video segment." />
         {[1, 2, 3].map((i) => (
           <div key={i} className="h-24 animate-pulse rounded-xl bg-muted/50" />
         ))}
@@ -73,60 +157,41 @@ const PromptPanel = () => {
     );
   }
 
-  const mock = promptOutput;
-  const segments = layer2?.seedance_prompts ?? null;
-  const directorNotes = layer2?.director_notes;
-
-  const scenes = segments
-    ? segments.map((p) => ({
-        title: p.segment_id,
-        prompt: p.prompt,
-        camera: [p.camera_notes, p.ratio, p.resolution, p.duration_sec ? `${p.duration_sec}s` : null]
-          .filter(Boolean)
-          .join(" · ") || undefined,
-      }))
-    : mock.scenes;
-
-  const styleTag = segments
-    ? [...new Set(segments.map((p) => p.ratio).filter(Boolean))].join(" · ") || mock.styleTag
-    : mock.styleTag;
-
-  return (
-    <div className="space-y-5 animate-fade-in">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border-[3px] border-primary bg-gradient-to-r from-primary-glow/40 to-secondary/40 p-4">
-        <div className="flex items-center gap-2">
-          <Package className="h-5 w-5 text-primary" />
-          <span className="font-pixel text-[11px] text-foreground">Prompt Packaging</span>
-        </div>
-        <span className="rounded-full border-2 border-foreground/15 bg-primary px-3 py-1 font-pixel text-[9px] text-primary-foreground animate-glow-pulse">
-          ♡ PROMPT READY
-        </span>
+  if (runId && status === "failed" && !layer2) {
+    return (
+      <div className="rounded-2xl border-2 border-destructive/40 bg-destructive/10 p-5 font-pixel text-[11px] text-destructive">
+        <p className="font-semibold">Director failed</p>
+        <p className="mt-2 whitespace-pre-wrap text-xs opacity-90">{run?.error_message ?? "Run failed"}</p>
       </div>
+    );
+  }
 
-      {directorNotes ? (
-        <PromptCard title="Director Notes" prompt={directorNotes} />
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          <PromptCard title="Final Image Prompt" prompt={mock.finalImage} />
-          <PromptCard title="Final Video Prompt" prompt={mock.finalVideo} />
-        </div>
-      )}
+  const segments = layer2?.seedance_prompts ?? null;
+  const mock = promptOutput;
 
-      <div>
-        <div className="mb-3 flex items-center gap-2">
-          <span className="font-pixel text-[11px] uppercase tracking-wider text-foreground">Scene-by-Scene Blocks</span>
-          <span className="h-px flex-1 bg-border" />
-        </div>
+  if (!segments || segments.length === 0) {
+    return (
+      <div className="space-y-3">
+        <p className="font-pixel text-[10px] uppercase text-muted-foreground">seedance_prompts</p>
         <div className="space-y-3">
-          {scenes.map((s) => (
-            <PromptCard key={s.title} title={s.title} prompt={s.prompt} camera={s.camera} />
+          {mock.scenes.map((s) => (
+            <div key={s.title} className="rounded-xl border-[3px] border-dashed border-border bg-muted/20 p-4">
+              <div className="font-pixel text-[10px] text-foreground">{s.title}</div>
+              <pre className="mt-2 whitespace-pre-wrap font-mono text-xs text-muted-foreground">{s.prompt}</pre>
+            </div>
           ))}
         </div>
       </div>
+    );
+  }
 
-      <div className="rounded-xl border-2 border-dashed border-primary/40 bg-primary/5 p-3 text-center">
-        <span className="font-pixel text-[9px] uppercase tracking-wider text-primary">style tag</span>
-        <p className="mt-1 font-mono text-xs text-foreground/80">{styleTag}</p>
+  return (
+    <div className="space-y-4 animate-fade-in">
+      <div className="font-pixel text-[10px] uppercase tracking-wider text-muted-foreground">seedance_prompts</div>
+      <div className="space-y-4">
+        {segments.map((seg) => (
+          <SegmentCard key={seg.segment_id} seg={seg} />
+        ))}
       </div>
     </div>
   );

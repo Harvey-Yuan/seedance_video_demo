@@ -31,10 +31,7 @@ const DirectorPanel = () => {
   if (isLoading) {
     return (
       <div className="space-y-4 animate-fade-in">
-        <PanelSkeleton
-          label="Scripting…"
-          hint={status === "draft" ? "Task queued — LLM is generating storyboard and dialogue…" : "Generating storyboard, script, characters and dialogue (≈30s)…"}
-        />
+        <PanelSkeleton label="Writing script…" hint="LLM is generating storyboard, script, characters, and dialogue." />
         {[1, 2, 3].map((i) => (
           <div key={i} className="h-14 animate-pulse rounded-xl bg-muted/50" />
         ))}
@@ -42,16 +39,20 @@ const DirectorPanel = () => {
     );
   }
 
-  // Use live data if available, else fall back to mock for demo mode
+  if (runId && status === "failed" && !live) {
+    return (
+      <div className="rounded-2xl border-2 border-destructive/40 bg-destructive/10 p-5 font-pixel text-[11px] text-destructive">
+        <p className="font-semibold">Writer failed</p>
+        <p className="mt-2 whitespace-pre-wrap text-xs opacity-90">{run?.error_message ?? "Run failed"}</p>
+      </div>
+    );
+  }
+
   const storyboard = live?.storyboard ?? null;
   const script = live?.script ?? null;
   const characters = live?.characters ?? null;
   const dialogue = live?.dialogue ?? null;
   const mock = directorOutput;
-
-  const beats = storyboard
-    ? storyboard.map((s, i) => ({ label: `Shot ${i + 1}`, text: `${s.visual}${s.camera_notes ? ` — ${s.camera_notes}` : ""}` }))
-    : mock.beats;
 
   const shots = storyboard
     ? storyboard.map((s) => ({ id: s.shot_id, desc: `${s.visual} (≈${s.duration_hint_sec}s)` }))
@@ -66,52 +67,35 @@ const DirectorPanel = () => {
     : mock.roles;
 
   const summary = script ?? mock.summary;
+  const useApi = !!live;
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="pixel-card-lavender bg-gradient-to-br from-secondary/40 to-primary-glow/30 p-5">
         <SectionTitle icon={Clapperboard}>Story Script</SectionTitle>
-        <p className="text-sm leading-relaxed text-foreground/90 md:text-base whitespace-pre-wrap">
-          {summary.length > 400 ? summary.slice(0, 400) + "…" : summary}
-        </p>
+        <p className="text-sm leading-relaxed text-foreground/90 md:text-base whitespace-pre-wrap">{useApi ? summary : summary.length > 400 ? `${summary.slice(0, 400)}…` : summary}</p>
       </div>
 
-      <Tabs defaultValue="beats" className="w-full">
+      <Tabs defaultValue="shots" className="w-full">
         <TabsList className="h-auto flex-wrap gap-1 rounded-xl border-[3px] border-border bg-muted/40 p-1.5">
-          <TabsTrigger value="beats" className="rounded-lg font-pixel text-[10px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Beats</TabsTrigger>
-          <TabsTrigger value="shots" className="rounded-lg font-pixel text-[10px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Shots</TabsTrigger>
-          <TabsTrigger value="dialogue" className="rounded-lg font-pixel text-[10px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Dialogue</TabsTrigger>
-          <TabsTrigger value="roles" className="rounded-lg font-pixel text-[10px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">Roles</TabsTrigger>
+          <TabsTrigger value="shots" className="rounded-lg font-pixel text-[10px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            Shots
+          </TabsTrigger>
+          <TabsTrigger value="dialogue" className="rounded-lg font-pixel text-[10px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            Dialogue Draft
+          </TabsTrigger>
+          <TabsTrigger value="roles" className="rounded-lg font-pixel text-[10px] data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            Character / Role Script
+          </TabsTrigger>
         </TabsList>
-
-        <TabsContent value="beats" className="mt-4">
-          <div className="pixel-card p-5">
-            <SectionTitle icon={Clapperboard}>Story Beats</SectionTitle>
-            <ol className="space-y-3">
-              {beats.map((b, i) => (
-                <li key={i} className="flex gap-3 rounded-xl border-2 border-border bg-muted/30 p-3">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-primary font-pixel text-[10px] text-primary-foreground">
-                    {i + 1}
-                  </span>
-                  <div>
-                    <div className="font-pixel text-[10px] uppercase tracking-wider text-primary">{b.label}</div>
-                    <div className="text-sm text-foreground/90">{b.text}</div>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </TabsContent>
 
         <TabsContent value="shots" className="mt-4">
           <div className="pixel-card p-5">
-            <SectionTitle icon={FileText}>Storyboard / Shot List</SectionTitle>
+            <SectionTitle icon={FileText}>Shots</SectionTitle>
             <div className="grid gap-3 sm:grid-cols-2">
               {shots.map((s) => (
                 <div key={s.id} className="rounded-xl border-2 border-border bg-gradient-to-br from-card to-muted/40 p-3">
-                  <div className="mb-1 inline-block rounded-md bg-secondary px-2 py-0.5 font-pixel text-[9px] text-secondary-foreground">
-                    {s.id}
-                  </div>
+                  <div className="mb-1 inline-block rounded-md bg-secondary px-2 py-0.5 font-pixel text-[9px] text-secondary-foreground">{s.id}</div>
                   <p className="text-sm text-foreground/90">{s.desc}</p>
                 </div>
               ))}
@@ -126,7 +110,7 @@ const DirectorPanel = () => {
               {dialogueItems.map((d, i) => (
                 <div key={i} className="rounded-xl border-l-4 border-primary bg-muted/30 p-3">
                   <div className="font-pixel text-[9px] uppercase tracking-wider text-primary">{d.who}</div>
-                  <div className="mt-1 text-sm italic text-foreground/90">"{d.line}"</div>
+                  <div className="mt-1 text-sm italic text-foreground/90">&ldquo;{d.line}&rdquo;</div>
                 </div>
               ))}
             </div>

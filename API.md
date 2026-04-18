@@ -13,10 +13,10 @@ flowchart LR
   fe[frontend]
   r[POST /api/runs]
   w[POST .../writer]
-  d[POST .../director]
   m[POST .../makeup]
+  d[POST .../director]
   s[POST .../seedance]
-  fe --> r --> w --> d --> m --> s
+  fe --> r --> w --> m --> d --> s
 ```
 
 | Step | Route | Prerequisites | Main fields written |
@@ -27,7 +27,7 @@ flowchart LR
 | Makeup | `POST /api/runs/{id}/makeup` | has `layer1_output` | `makeup_output`, `makeup_done` |
 | Merge | `POST /api/runs/{id}/seedance` (**202** async) | has `layer2_output` **and** `makeup_output` | `seedance_job` in background; then `layer3_output` + `status=done` / `failed` |
 
-**Recommended order**: writer → director → makeup → Seedance (matches frontend). Director **only** reads `layer1`; makeup **only** reads `layer1`; merge reads **director + makeup**.
+**Recommended order**: writer → makeup → director → Seedance (visual stills before per-segment prompts; matches `pixel-love-studio`). Director **only** reads `layer1`; makeup **only** reads `layer1`; merge reads **director + makeup** and requires **non-empty** `makeup_output.character_image_urls` and `layer2_output.seedance_prompts`.
 
 **Optional one-shot**: `POST /api/runs/{id}/pipeline` (when `draft` and all stage outputs empty) runs the four steps **in the background**, equivalent to four separate client calls.
 
@@ -140,8 +140,8 @@ R=$(curl -sS -X POST "$BASE/api/runs" -H "Content-Type: application/json" \
 ID=$(echo "$R" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
 
 curl -sS -m 300 -X POST "$BASE/api/runs/$ID/writer" | python3 -m json.tool
-curl -sS -m 300 -X POST "$BASE/api/runs/$ID/director" | python3 -m json.tool
 curl -sS -m 600 -X POST "$BASE/api/runs/$ID/makeup" | python3 -m json.tool
+curl -sS -m 300 -X POST "$BASE/api/runs/$ID/director" | python3 -m json.tool
 curl -sS -D - -o /tmp/sd.json -X POST "$BASE/api/runs/$ID/seedance"
 # Expect first line HTTP/1.1 202; then poll:
 while true; do
