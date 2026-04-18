@@ -2,6 +2,8 @@ export type RunStatus =
   | "draft"
   | "layer1_running"
   | "layer1_done"
+  | "makeup_running"
+  | "makeup_done"
   | "layer2_running"
   | "layer2_done"
   | "layer3_running"
@@ -22,21 +24,46 @@ export interface Layer1Output {
   dialogue: { speaker: string; line: string; shot_ref?: string }[];
 }
 
+export interface MakeupOutput {
+  character_image_urls: string[];
+  makeup_prompts?: string[];
+  meta?: Record<string, unknown>;
+}
+
+export interface SeedancePromptSegment {
+  segment_id: string;
+  prompt: string;
+  segment_goal?: string;
+  camera_notes?: string;
+  image_refs?: number[];
+  image_roles?: string[];
+  duration_sec?: number;
+  ratio?: string;
+  resolution?: string;
+  generate_audio?: boolean;
+  camera_fixed?: boolean;
+  seed?: number;
+}
+
 export interface Layer2Output {
+  director_notes?: string;
   character_image_urls: string[];
   image_prompts_used?: string[];
-  seedance_prompts: {
-    segment_id: string;
-    prompt: string;
-    image_refs?: number[];
-  }[];
+  seedance_prompts: SeedancePromptSegment[];
 }
 
 export interface Layer3Output {
   video_url: string;
   model: string;
   duration_sec?: number;
-  meta?: { product_note?: string };
+  meta?: {
+    product_note?: string;
+    segment_urls?: string[];
+    storage_object_id?: string;
+    upload_error?: string;
+    upload_skipped?: boolean;
+    merged_bytes?: number;
+  };
 }
 
 export interface RunRow {
@@ -45,6 +72,7 @@ export interface RunRow {
   status: RunStatus;
   drama_input: string;
   layer1_output: Layer1Output | null;
+  makeup_output: MakeupOutput | null;
   layer2_output: Layer2Output | null;
   layer3_output: Layer3Output | null;
   error_code: string | null;

@@ -26,10 +26,16 @@ function isLayer1Pending(status: RunStatus, row: RunRow | null): boolean {
   return status === "draft" || status === "layer1_running";
 }
 
-function isLayer2Pending(status: RunStatus, row: RunRow): boolean {
+function isMakeupPending(status: RunStatus, row: RunRow): boolean {
   if (status === "failed") return false;
-  if (!row.layer1_output || row.layer2_output) return false;
-  return status === "layer1_done" || status === "layer2_running";
+  if (!row.layer1_output || row.makeup_output) return false;
+  return status === "layer1_done" || status === "makeup_running";
+}
+
+function isDirectorPending(status: RunStatus, row: RunRow): boolean {
+  if (status === "failed") return false;
+  if (!row.makeup_output || row.layer2_output) return false;
+  return status === "makeup_done" || status === "layer2_running";
 }
 
 function isLayer3Pending(status: RunStatus, row: RunRow): boolean {
@@ -59,11 +65,13 @@ function LayerSpinner({
 function statusLabel(s: string): string {
   const map: Record<string, string> = {
     draft: "排队中",
-    layer1_running: "Layer1 分镜与脚本",
-    layer1_done: "Layer1 完成",
-    layer2_running: "Layer2 角色与提示词",
-    layer2_done: "Layer2 完成",
-    layer3_running: "Layer3 Seedance 成片",
+    layer1_running: "编剧 · 分镜与脚本",
+    layer1_done: "编剧完成",
+    makeup_running: "定妆 · ModelArk 图像",
+    makeup_done: "定妆完成",
+    layer2_running: "导演 · 多段 Seedance 参数",
+    layer2_done: "导演完成",
+    layer3_running: "成片 · 多段渲染与拼接",
     done: "完成",
     failed: "失败",
   };
@@ -127,11 +135,12 @@ export default function App() {
       <header className="hero">
         <p className="eyebrow">Personal drama → Seedance</p>
         <h1 className="title">
-          三层 Agent
-          <span className="title-accent"> 流水线</span>
+          编剧 / 定妆 / 导演
+          <span className="title-accent"> 多段成片</span>
         </h1>
         <p className="lede">
-          Layer1 分镜与台词 · Layer2 动漫参考与视频 prompt · Layer3 Seedance 2.0 成片
+          约 1 分钟体量分镜 · 真人向定妆参考图 · 导演输出多段参数 · Seedance 渲染后 ffmpeg 拼接并上传
+          Storage
         </p>
         {note ? <p className="product-note">{note}</p> : null}
       </header>
@@ -180,15 +189,15 @@ export default function App() {
                   <strong>{run.error_code}</strong>
                   <p>{run.error_message}</p>
                   <p className="small muted">
-                    可检查 BUTTERBASE_APP_ID + BUTTERBASE_API_KEY（Butterbase AI 网关）或
-                    OPENAI_API_KEY、以及 SEEDANCE_2_0_API 与网络；仅重跑需新增接口（当前为单次流水线）。
+                    可检查 BUTTERBASE_APP_ID + BUTTERBASE_API_KEY、MAKEUP_IMAGE_MODEL、SEEDANCE_2_0_API、
+                    本机 ffmpeg 与 Storage 配额；仅重跑需新增接口（当前为单次流水线）。
                   </p>
                 </div>
               ) : null}
 
               {run.layer1_output ? (
                 <article className="panel layer layer1">
-                  <h2>Layer1 · 分镜与脚本</h2>
+                  <h2>编剧 · 分镜与脚本</h2>
                   <div className="shots">
                     {run.layer1_output.storyboard.map((s, i) => (
                       <div
@@ -217,9 +226,9 @@ export default function App() {
                 </article>
               ) : isLayer1Pending(run.status, run) ? (
                 <article className="panel layer layer1 layer-pending">
-                  <h2>Layer1 · 分镜与脚本</h2>
+                  <h2>编剧 · 分镜与脚本</h2>
                   <LayerSpinner
-                    label="Layer1 生成中"
+                    label="编剧生成中"
                     hint={
                       run.status === "draft"
                         ? "任务已排队，正在调用 LLM 写分镜与台词…"
@@ -229,36 +238,73 @@ export default function App() {
                 </article>
               ) : null}
 
-              {run.layer2_output ? (
-                <article className="panel layer layer2">
-                  <h2>Layer2 · 参考图与 Seedance prompt</h2>
+              {run.makeup_output ? (
+                <article className="panel layer makeup">
+                  <h2>定妆 · 真人向参考图</h2>
                   <div className="img-row">
-                    {run.layer2_output.character_image_urls.map((u) => (
+                    {run.makeup_output.character_image_urls.map((u) => (
                       <a key={u} href={u} target="_blank" rel="noreferrer">
-                        <img src={u} alt="character ref" className="ref-img" />
+                        <img src={u} alt="makeup ref" className="ref-img" />
                       </a>
                     ))}
                   </div>
+                  {run.makeup_output.makeup_prompts?.length ? (
+                    <details className="small muted">
+                      <summary>定妆英文 prompt</summary>
+                      <ul>
+                        {run.makeup_output.makeup_prompts.map((t, i) => (
+                          <li key={i}>{t}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  ) : null}
+                </article>
+              ) : isMakeupPending(run.status, run) ? (
+                <article className="panel layer makeup layer-pending">
+                  <h2>定妆 · 真人向参考图</h2>
+                  <LayerSpinner
+                    label="定妆生成中"
+                    hint="LLM 规划定妆 prompt 后，由 ModelArk 图像接口逐张出图，可能需要数十秒…"
+                  />
+                </article>
+              ) : null}
+
+              {run.layer2_output ? (
+                <article className="panel layer layer2">
+                  <h2>导演 · 多段 Seedance 计划</h2>
+                  {run.layer2_output.director_notes ? (
+                    <p className="small muted">{run.layer2_output.director_notes}</p>
+                  ) : null}
                   {run.layer2_output.seedance_prompts.map((p) => (
                     <div key={p.segment_id} className="prompt-block">
                       <span className="mono small">{p.segment_id}</span>
+                      {p.segment_goal ? (
+                        <p className="small muted">目标：{p.segment_goal}</p>
+                      ) : null}
                       <p>{p.prompt}</p>
+                      <p className="small muted">
+                        {p.duration_sec != null ? `${p.duration_sec}s` : "—"} ·{" "}
+                        {p.ratio ?? "—"} · {p.resolution ?? "—"}
+                        {p.image_refs?.length
+                          ? ` · refs [${p.image_refs.join(", ")}]`
+                          : ""}
+                      </p>
                     </div>
                   ))}
                 </article>
-              ) : isLayer2Pending(run.status, run) ? (
+              ) : isDirectorPending(run.status, run) ? (
                 <article className="panel layer layer2 layer-pending">
-                  <h2>Layer2 · 参考图与 Seedance prompt</h2>
+                  <h2>导演 · 多段 Seedance 计划</h2>
                   <LayerSpinner
-                    label="Layer2 生成中"
-                    hint="角色设定、参考图与 Seedance 英文 prompt，请稍候…"
+                    label="导演生成中"
+                    hint="结合编剧 JSON 与定妆图，生成每段的英文视频 prompt 与结构化参数…"
                   />
                 </article>
               ) : null}
 
               {run.layer3_output ? (
                 <article className="panel layer layer3">
-                  <h2>Layer3 · 成片</h2>
+                  <h2>成片 · 拼接与上传</h2>
                   <video
                     className="video"
                     src={run.layer3_output.video_url}
@@ -271,16 +317,21 @@ export default function App() {
                       ? ` · ${run.layer3_output.duration_sec}s`
                       : ""}
                   </p>
+                  {run.layer3_output.meta?.upload_error ? (
+                    <p className="small error">
+                      Storage：{run.layer3_output.meta.upload_error}
+                    </p>
+                  ) : null}
                   {run.layer3_output.meta?.product_note ? (
                     <p className="small">{run.layer3_output.meta.product_note}</p>
                   ) : null}
                 </article>
               ) : isLayer3Pending(run.status, run) ? (
                 <article className="panel layer layer3 layer-pending">
-                  <h2>Layer3 · 成片</h2>
+                  <h2>成片 · 拼接与上传</h2>
                   <LayerSpinner
-                    label="Seedance 渲染中"
-                    hint="云端排队与生成可能需 1～3 分钟，请勿关闭页面…"
+                    label="多段 Seedance 渲染与拼接"
+                    hint="逐段生成、本机 ffmpeg 拼接、上传 Butterbase Storage；总耗时常为数分钟…"
                   />
                 </article>
               ) : null}

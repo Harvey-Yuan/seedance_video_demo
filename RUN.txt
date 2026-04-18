@@ -9,23 +9,29 @@ Seedance 多 Agent 流水线 — 本地运行
 
 2) 环境变量（可写入仓库根目录 .env，已由 pydantic-settings 读取）：
 
-   方式 A — Butterbase AI 网关（推荐，与 @butterbase/sdk 一致）：
+   方式 A — Butterbase AI 网关 + Storage（推荐）：
    BUTTERBASE_API_URL=https://api.butterbase.ai
    BUTTERBASE_APP_ID=app_你的应用id
-   BUTTERBASE_API_KEY=bb_sk_...        # 控制台 Service / 平台 API Key
-   # 可选：LAYER1_MODEL=openai/gpt-4o-mini（未设置且仍为默认 gpt-4o-mini 时会自动改为 openai/gpt-4o-mini）
+   BUTTERBASE_API_KEY=bb_sk_...        # 控制台 Service Key：既用于 chat，也用于 Storage REST
    # 若网关支持 JSON mode：BUTTERBASE_JSON_RESPONSE=true
 
-   若 A、B 同时配置，Layer1/2 优先走 Butterbase；生图仍仅在使用 OPENAI_API_KEY 时尝试 OpenAI images API。
+   Seedance / ModelArk（视频 + 定妆图）：
+   SEEDANCE_2_0_API=...                # BytePlus Ark API Key
+   # MAKEUP_IMAGE_MODEL 默认 seedream-4-0-250828（BytePlus ModelArk Seedream 4.0 文档）
+   # 若使用推理接入点，可改为 ep-…
+   # 可选：ARK_IMAGE_BASE_URL=...      # 默认与 SEEDANCE_ARK_BASE_URL / ark 区域一致
+   # 可选：SEEDANCE_VIDEO_MODEL=...    # 默认 dreamina-seedance-2-0-260128
 
-   方式 B — 直连 OpenAI 或其它 OpenAI 兼容服务：
+   成片拼接与上传：
+   - 本机需安装 **ffmpeg**，并在 PATH 中；或设置 FFMPEG_PATH 为可执行文件绝对路径。
+   - 拼接后的 mp4 通过 Butterbase Storage **POST /storage/{app_id}/upload** 上传；默认 **单文件 10MB** 配额（控制台可调），超长成片可能上传失败，此时会降级为返回末段 Seedance URL 并在 meta 中记录 upload_error。
+
+   方式 B — 直连 OpenAI 或其它 OpenAI 兼容服务（仅 LLM）：
    OPENAI_API_KEY=...
    OPENAI_BASE_URL=https://api.openai.com/v1
    LAYER1_MODEL=gpt-4o-mini
    LAYER2_MODEL=gpt-4o-mini
-   SEEDANCE_2_0_API=...         # BytePlus Seedance（与 seedance_video.py 一致）
-   # 可选：IMAGE_MODEL=dall-e-3 等，用于 Layer2 自动补参考图
-   # 可选：SEEDANCE_DURATION=5  SEEDANCE_RATIO=16:9
+   （无 Butterbase 时仍会跑通多段渲染与 ffmpeg，但 **不会** 上传 Storage，video_url 为末段 Seedance 临时地址。）
 
 3) 启动 API（需在仓库根目录，以便 import seedance_video）：
 
@@ -39,6 +45,6 @@ Seedance 多 Agent 流水线 — 本地运行
 
 Butterbase 部署
 ---------------
-- 将 butterbase/schema/runs_v1.json 应用到你的 Butterbase 应用（MCP 或 REST）。
+- 将 butterbase/schema/runs_v1.json 应用到你的 Butterbase 应用（MCP 或 REST）；若已有 runs 表需 **ALTER TABLE runs ADD COLUMN makeup_output jsonb**。
 - 按 butterbase/RLS_AND_CORS.txt 配置 RLS 与 CORS。
 - 将本仓库 backend 中的编排逻辑迁移为 Butterbase Serverless Function 时，保持与 contracts/*.schema.json 相同的 JSON 契约即可。

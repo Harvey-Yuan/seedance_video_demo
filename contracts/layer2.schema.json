@@ -1,30 +1,41 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://seedance.local/contracts/layer2.json",
-  "title": "Layer2VisualAndPrompts",
+  "title": "DirectorSeedancePlan",
+  "description": "导演输出：多段 Seedance 参数；不包含定妆图 URL（由 makeup_output 提供）。",
   "type": "object",
-  "required": ["character_image_urls", "seedance_prompts"],
+  "required": ["seedance_prompts"],
   "properties": {
-    "character_image_urls": {
-      "type": "array",
-      "items": { "type": "string", "format": "uri" }
-    },
-    "image_prompts_used": {
-      "type": "array",
-      "items": { "type": "string" }
+    "director_notes": {
+      "type": "string",
+      "description": "可选：气质标签、反转节拍等（非硬编码台词）"
     },
     "seedance_prompts": {
       "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
       "items": {
         "type": "object",
         "required": ["segment_id", "prompt"],
         "properties": {
           "segment_id": { "type": "string" },
           "prompt": { "type": "string" },
+          "segment_goal": { "type": "string" },
+          "camera_notes": { "type": "string" },
           "image_refs": {
             "type": "array",
             "items": { "type": "integer", "minimum": 0 }
-          }
+          },
+          "image_roles": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "duration_sec": { "type": "integer", "minimum": 1, "maximum": 60 },
+          "ratio": { "type": "string" },
+          "resolution": { "type": "string" },
+          "generate_audio": { "type": "boolean" },
+          "camera_fixed": { "type": "boolean" },
+          "seed": { "type": "integer" }
         },
         "additionalProperties": true
       }

@@ -14,7 +14,7 @@ def _coerce_str(v: Any) -> str:
 class StoryboardShot(BaseModel):
     shot_id: str
     visual: str
-    duration_hint_sec: float = Field(ge=0)
+    duration_hint_sec: float = Field(ge=0, le=15)
     camera_notes: Optional[str] = None
 
     model_config = {"extra": "allow"}
@@ -58,7 +58,7 @@ class DialogueLine(BaseModel):
 
 
 class Layer1Output(BaseModel):
-    storyboard: list[StoryboardShot]
+    storyboard: list[StoryboardShot] = Field(default_factory=list, max_length=12)
     script: str
     characters: list[Character]
     dialogue: list[DialogueLine]
@@ -71,23 +71,62 @@ class Layer1Output(BaseModel):
         return _coerce_str(v)
 
 
-class SeedancePromptSegment(BaseModel):
-    segment_id: str
-    prompt: str
-    image_refs: Optional[list[int]] = None
+class MakeupPlanItem(BaseModel):
+    character_key: str
+    prompt_en: str
 
     model_config = {"extra": "allow"}
 
-    @field_validator("segment_id", "prompt", mode="before")
+    @field_validator("character_key", "prompt_en", mode="before")
     @classmethod
     def _strings(cls, v):
         return _coerce_str(v)
 
 
+class MakeupPlan(BaseModel):
+    items: list[MakeupPlanItem] = Field(default_factory=list, min_length=1, max_length=6)
+
+    model_config = {"extra": "allow"}
+
+
+class MakeupOutput(BaseModel):
+    character_image_urls: list[str] = Field(default_factory=list)
+    makeup_prompts: list[str] = Field(default_factory=list)
+    meta: Optional[dict[str, Any]] = None
+
+    model_config = {"extra": "allow"}
+
+
+class SeedancePromptSegment(BaseModel):
+    segment_id: str
+    prompt: str
+    segment_goal: Optional[str] = None
+    camera_notes: Optional[str] = None
+    image_refs: Optional[list[int]] = None
+    image_roles: Optional[list[str]] = None
+    duration_sec: Optional[int] = Field(default=None, ge=1, le=60)
+    ratio: Optional[str] = None
+    resolution: Optional[str] = None
+    generate_audio: Optional[bool] = None
+    camera_fixed: Optional[bool] = None
+    seed: Optional[int] = None
+
+    model_config = {"extra": "allow"}
+
+    @field_validator("segment_id", "prompt", "segment_goal", "camera_notes", mode="before")
+    @classmethod
+    def _strings(cls, v):
+        if v is None:
+            return v
+        return _coerce_str(v)
+
+
 class Layer2Output(BaseModel):
+    """导演 JSON：主字段为 seedance_prompts；character_image_urls 仅兼容旧数据，新流水线由 makeup_output 提供。"""
+    director_notes: Optional[str] = None
     character_image_urls: list[str] = Field(default_factory=list)
     image_prompts_used: Optional[list[str]] = None
-    seedance_prompts: list[SeedancePromptSegment]
+    seedance_prompts: list[SeedancePromptSegment] = Field(default_factory=list)
 
     model_config = {"extra": "allow"}
 

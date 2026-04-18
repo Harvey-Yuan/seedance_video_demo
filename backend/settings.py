@@ -61,14 +61,34 @@ class Settings(BaseSettings):
         default=None,
         description="Optional: 720p, 1080p, 2k",
     )
+    seedance_video_model: str = Field(
+        default="dreamina-seedance-2-0-260128",
+        validation_alias="SEEDANCE_VIDEO_MODEL",
+    )
+    makeup_image_model: str | None = Field(
+        default="seedream-4-0-250828",
+        validation_alias="MAKEUP_IMAGE_MODEL",
+        description=(
+            "ModelArk 图像模型 id（定妆）。官方 Seedream 4.0 单图版本见文档 "
+            "https://docs.byteplus.com/en/docs/ModelArk/1824718 （Model Version: seedream-4-0-250828）。"
+            "控制台若使用推理接入点 ep-…，可覆盖为本环境变量。"
+        ),
+    )
+    ark_image_base_url: str | None = Field(
+        default=None,
+        validation_alias="ARK_IMAGE_BASE_URL",
+        description="图像 API Base URL，默认与 Seedance 相同（ark .../api/v3）",
+    )
+    ffmpeg_path: str = Field(default="ffmpeg", validation_alias="FFMPEG_PATH")
     cors_origins: str = Field(
         default="http://localhost:5173,http://127.0.0.1:5173",
         validation_alias="CORS_ORIGINS",
     )
     product_note_zh: str = Field(
         default=(
-            "分镜与脚本按约 3 分钟叙事体量生成；Seedance 单次成片时长受模型与参数限制，"
-            "当前流水线以「单段短片」为 MVP 输出。"
+            "编剧约 1 分钟体量；定妆为真人向参考图；导演输出多段 Seedance 参数；"
+            "成片为多段渲染后经 ffmpeg 拼接；最终文件上传 Butterbase Storage（下载链接有时效，"
+            "object_id 见 meta）。"
         ),
         validation_alias="PRODUCT_NOTE_ZH",
     )
@@ -78,6 +98,8 @@ class Settings(BaseSettings):
         "butterbase_api_key",
         "openai_api_key",
         "seedance_api_key",
+        "makeup_image_model",
+        "ark_image_base_url",
         mode="before",
     )
     @classmethod

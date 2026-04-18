@@ -13,6 +13,13 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _ensure_columns(conn: sqlite3.Connection) -> None:
+    cur = conn.execute("PRAGMA table_info(runs)")
+    cols = {row[1] for row in cur.fetchall()}
+    if "makeup_output" not in cols:
+        conn.execute("ALTER TABLE runs ADD COLUMN makeup_output TEXT")
+
+
 def init_db() -> None:
     settings = get_settings()
     os.makedirs(os.path.dirname(settings.database_path), exist_ok=True)
@@ -25,6 +32,7 @@ def init_db() -> None:
               status TEXT NOT NULL,
               drama_input TEXT NOT NULL,
               layer1_output TEXT,
+              makeup_output TEXT,
               layer2_output TEXT,
               layer3_output TEXT,
               error_code TEXT,
@@ -37,6 +45,7 @@ def init_db() -> None:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_runs_status ON runs (status)"
         )
+        _ensure_columns(conn)
         conn.commit()
 
 
@@ -55,13 +64,14 @@ def create_run(drama_input: str, user_id: str | None = None) -> str:
     run_id = str(uuid.uuid4())
     now = _utc_now()
     with connect() as conn:
+        _ensure_columns(conn)
         conn.execute(
             """
             INSERT INTO runs (
               id, user_id, status, drama_input,
-              layer1_output, layer2_output, layer3_output,
+              layer1_output, makeup_output, layer2_output, layer3_output,
               error_code, error_message, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?)
+            ) VALUES (?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)
             """,
             (run_id, user_id, "draft", drama_input, now, now),
         )
@@ -74,6 +84,7 @@ def update_run(
     *,
     status: str | None = None,
     layer1_output: dict[str, Any] | None = None,
+    makeup_output: dict[str, Any] | None = None,
     layer2_output: dict[str, Any] | None = None,
     layer3_output: dict[str, Any] | None = None,
     error_code: str | None = None,
@@ -87,6 +98,9 @@ def update_run(
     if layer1_output is not None:
         fields.append("layer1_output = ?")
         values.append(json.dumps(layer1_output, ensure_ascii=False))
+    if makeup_output is not None:
+        fields.append("makeup_output = ?")
+        values.append(json.dumps(makeup_output, ensure_ascii=False))
     if layer2_output is not None:
         fields.append("layer2_output = ?")
         values.append(json.dumps(layer2_output, ensure_ascii=False))
@@ -104,18 +118,20 @@ def update_run(
     values.append(run_id)
     sql = f"UPDATE runs SET {', '.join(fields)} WHERE id = ?"
     with connect() as conn:
+        _ensure_columns(conn)
         conn.execute(sql, values)
         conn.commit()
 
 
 def get_run(run_id: str) -> dict[str, Any] | None:
     with connect() as conn:
+        _ensure_columns(conn)
         cur = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,))
         row = cur.fetchone()
     if not row:
         return None
     d = dict(row)
-    for key in ("layer1_output", "layer2_output", "layer3_output"):
+    for key in ("layer1_output", "makeup_output", "layer2_output", "layer3_output"):
         raw = d.get(key)
         if raw:
             d[key] = json.loads(raw)

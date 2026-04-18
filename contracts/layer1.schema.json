@@ -2,18 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://seedance.local/contracts/layer1.json",
   "title": "Layer1StoryPackage",
+  "description": "约 1 分钟叙事体量：分镜少、每条 duration_hint_sec ≤ 15。",
   "type": "object",
   "required": ["storyboard", "script", "characters", "dialogue"],
   "properties": {
     "storyboard": {
       "type": "array",
+      "maxItems": 12,
       "items": {
         "type": "object",
         "required": ["shot_id", "visual", "duration_hint_sec"],
         "properties": {
           "shot_id": { "type": "string" },
           "visual": { "type": "string" },
-          "duration_hint_sec": { "type": "number", "minimum": 0 },
+          "duration_hint_sec": { "type": "number", "minimum": 0, "maximum": 15 },
           "camera_notes": { "type": "string" }
         },
         "additionalProperties": true

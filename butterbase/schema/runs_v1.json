@@ -27,6 +27,10 @@
             "type": "jsonb",
             "nullable": true
           },
+          "makeup_output": {
+            "type": "jsonb",
+            "nullable": true
+          },
           "layer2_output": {
             "type": "jsonb",
             "nullable": true
