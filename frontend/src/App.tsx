@@ -333,7 +333,7 @@ export default function App() {
 
               {run.makeup_output ? (
                 <article className="panel layer makeup">
-                  <h2>定妆 · 真人向参考图</h2>
+                  <h2>Makeup · photoreal reference stills</h2>
                   <div className="img-row">
                     {run.makeup_output.character_image_urls.map((u) => (
                       <a key={u} href={u} target="_blank" rel="noreferrer">
@@ -343,7 +343,7 @@ export default function App() {
                   </div>
                   {run.makeup_output.makeup_prompts?.length ? (
                     <details className="small muted">
-                      <summary>定妆英文 prompt</summary>
+                      <summary>Makeup prompts (EN)</summary>
                       <ul>
                         {run.makeup_output.makeup_prompts.map((t, i) => (
                           <li key={i}>{t}</li>
@@ -354,17 +354,17 @@ export default function App() {
                 </article>
               ) : isMakeupPending(run.status, run) ? (
                 <article className="panel layer makeup layer-pending">
-                  <h2>定妆 · 真人向参考图</h2>
+                  <h2>Makeup · photoreal reference stills</h2>
                   <LayerSpinner
-                    label="定妆生成中"
-                    hint="LLM 规划定妆 prompt 后，由 ModelArk 图像接口逐张出图，可能需要数十秒…"
+                    label="Makeup running"
+                    hint="LLM plans prompts; ModelArk images.generate per still—may take tens of seconds…"
                   />
                 </article>
               ) : null}
 
               {run.layer3_output ? (
                 <article className="panel layer layer3">
-                  <h2>成片 · 拼接与上传</h2>
+                  <h2>Merge · stitch & upload</h2>
                   <video
                     className="video"
                     src={run.layer3_output.video_url}
@@ -379,7 +379,7 @@ export default function App() {
                   </p>
                   {run.layer3_output.meta?.upload_error ? (
                     <p className="small error">
-                      Storage：{run.layer3_output.meta.upload_error}
+                      Storage: {run.layer3_output.meta.upload_error}
                     </p>
                   ) : null}
                   {run.layer3_output.meta?.product_note ? (
@@ -388,10 +388,10 @@ export default function App() {
                 </article>
               ) : isLayer3Pending(run.status, run) ? (
                 <article className="panel layer layer3 layer-pending">
-                  <h2>成片 · 拼接与上传</h2>
+                  <h2>Merge · stitch & upload</h2>
                   <LayerSpinner
-                    label="多段 Seedance 渲染与拼接"
-                    hint="逐段生成、本机 ffmpeg 拼接、上传 Butterbase Storage；总耗时常为数分钟…"
+                    label="Multi-segment Seedance render & stitch"
+                    hint="Per-segment gen, local ffmpeg merge, Butterbase Storage upload—often several minutes…"
                   />
                 </article>
               ) : null}
