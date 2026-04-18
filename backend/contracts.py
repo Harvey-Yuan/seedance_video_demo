@@ -122,7 +122,7 @@ class SeedancePromptSegment(BaseModel):
 
 
 class Layer2Output(BaseModel):
-    """导演 JSON：主字段为 seedance_prompts；character_image_urls 仅兼容旧数据，新流水线由 makeup_output 提供。"""
+    """Director JSON: primary field is seedance_prompts; character_image_urls is legacy—new pipeline uses makeup_output."""
     director_notes: Optional[str] = None
     character_image_urls: list[str] = Field(default_factory=list)
     image_prompts_used: Optional[list[str]] = None

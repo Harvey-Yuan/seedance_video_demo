@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { RunRow, RunStatus } from "./types";
+import type { RunRow, RunStatus, SeedanceJobStatus } from "./types";
 
 const API = import.meta.env.VITE_API_URL ?? "";
 
@@ -31,7 +31,7 @@ async function fetchJSON<T>(path: string, init?: FetchJSONInit): Promise<T> {
   }
 }
 
-/** Layer1 正在生成：draft 或 layer1_running 且尚无输出 */
+/** Layer1 pending: draft or layer1_running with no layer1_output yet */
 function isLayer1Pending(status: RunStatus, row: RunRow | null): boolean {
   if (status === "failed") return false;
   if (!row) return true;
@@ -77,16 +77,16 @@ function LayerSpinner({
 
 function statusLabel(s: string): string {
   const map: Record<string, string> = {
-    draft: "排队中",
-    layer1_running: "编剧 · 分镜与脚本",
-    layer1_done: "编剧完成",
-    makeup_running: "定妆 · ModelArk 图像",
-    makeup_done: "定妆完成",
-    layer2_running: "导演 · 多段 Seedance 参数",
-    layer2_done: "导演完成",
-    layer3_running: "成片 · 多段渲染与拼接",
-    done: "完成",
-    failed: "失败",
+    draft: "Queued",
+    layer1_running: "Writer · storyboard & script",
+    layer1_done: "Writer done",
+    makeup_running: "Makeup · ModelArk images",
+    makeup_done: "Makeup done",
+    layer2_running: "Director · multi-segment Seedance",
+    layer2_done: "Director done",
+    layer3_running: "Merge · render & stitch",
+    done: "Done",
+    failed: "Failed",
   };
   return map[s] ?? s;
 }
@@ -144,11 +144,46 @@ export default function App() {
         { path: `/api/runs/${id}/seedance`, timeoutMs: 900_000 },
       ];
       for (const { path, timeoutMs } of steps) {
-        await fetchJSON(path, { method: "POST", timeoutMs });
+        if (path.endsWith("/seedance")) {
+          const ctrl = new AbortController();
+          const tid = window.setTimeout(() => ctrl.abort(), timeoutMs);
+          try {
+            const r = await fetch(`${API}${path}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              signal: ctrl.signal,
+            });
+            window.clearTimeout(tid);
+            if (r.status === 202) {
+              const j = (await r.json()) as { status_url: string };
+              const rel = j.status_url.startsWith("/")
+                ? j.status_url
+                : `/${j.status_url}`;
+              for (;;) {
+                const st = await fetchJSON<SeedanceJobStatus>(rel);
+                if (st.phase === "done") break;
+                if (st.phase === "failed")
+                  throw new Error(
+                    String(st.error_message ?? st.error_code ?? "Seedance failed"),
+                  );
+                await new Promise((res) => setTimeout(res, 2500));
+              }
+            } else if (!r.ok) {
+              const t = await r.text();
+              throw new Error(t || r.statusText);
+            } else {
+              await r.json();
+            }
+          } finally {
+            window.clearTimeout(tid);
+          }
+        } else {
+          await fetchJSON(path, { method: "POST", timeoutMs });
+        }
         await loadRun(id);
       }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "提交失败");
+      setErr(e instanceof Error ? e.message : "Submit failed");
     } finally {
       setLoading(false);
     }
@@ -159,12 +194,12 @@ export default function App() {
       <header className="hero">
         <p className="eyebrow">Personal drama → Seedance</p>
         <h1 className="title">
-          编剧 / 导演 / 定妆
-          <span className="title-accent"> 多段成片</span>
+          Writer / director / makeup
+          <span className="title-accent"> multi-segment video</span>
         </h1>
         <p className="lede">
-          前端依次调用：编剧 API → 导演 API → 定妆 API → Seedance 成片 API；服务端编排 Butterbase LLM、
-          ModelArk 图像/视频、ffmpeg 与 Storage。
+          The client calls writer → director → makeup → Seedance merge APIs in order; the server
+          orchestrates Butterbase LLM, ModelArk image/video, ffmpeg, and Storage.
         </p>
         {note ? <p className="product-note">{note}</p> : null}
       </header>
@@ -179,7 +214,7 @@ export default function App() {
           rows={8}
           value={drama}
           onChange={(e) => setDrama(e.target.value)}
-          placeholder="写下你的故事、情绪、场景……"
+          placeholder="Your story, mood, scene…"
         />
         <button
           type="button"
@@ -187,7 +222,7 @@ export default function App() {
           disabled={loading || !drama.trim()}
           onClick={() => void submit()}
         >
-          {loading ? "流水线执行中…" : "开始生成"}
+          {loading ? "Pipeline running…" : "Start"}
         </button>
         {err ? <p className="error">{err}</p> : null}
       </section>
@@ -197,8 +232,8 @@ export default function App() {
           {!run ? (
             <div className="panel layer-pending">
               <LayerSpinner
-                label="正在连接任务"
-                hint="拉取运行状态，约 1～2 秒"
+                label="Connecting"
+                hint="Fetching run state (~1–2s)"
               />
             </div>
           ) : (
@@ -213,16 +248,16 @@ export default function App() {
                   <strong>{run.error_code}</strong>
                   <p>{run.error_message}</p>
                   <p className="small muted">
-                    可检查 BUTTERBASE_APP_ID + BUTTERBASE_API_KEY、MAKEUP_IMAGE_MODEL、SEEDANCE_2_0_API、
-                    本机 ffmpeg 与 Storage 配额；可分别重试{" "}
-                    <span className="mono">POST /api/runs/&lt;id&gt;/writer</span> 等四步接口。
+                    Check BUTTERBASE_APP_ID + BUTTERBASE_API_KEY, MAKEUP_IMAGE_MODEL, SEEDANCE_2_0_API,
+                    local ffmpeg, and Storage quota; retry each step via{" "}
+                    <span className="mono">POST /api/runs/&lt;id&gt;/writer</span> and the other three routes.
                   </p>
                 </div>
               ) : null}
 
               {run.layer1_output ? (
                 <article className="panel layer layer1">
-                  <h2>编剧 · 分镜与脚本</h2>
+                  <h2>Writer · storyboard & script</h2>
                   <div className="shots">
                     {run.layer1_output.storyboard.map((s, i) => (
                       <div
@@ -238,9 +273,9 @@ export default function App() {
                       </div>
                     ))}
                   </div>
-                  <h3 className="subh">脚本</h3>
+                  <h3 className="subh">Script</h3>
                   <pre className="script-block">{run.layer1_output.script}</pre>
-                  <h3 className="subh">角色</h3>
+                  <h3 className="subh">Characters</h3>
                   <ul className="char-list">
                     {run.layer1_output.characters.map((c) => (
                       <li key={c.name}>
@@ -251,13 +286,13 @@ export default function App() {
                 </article>
               ) : isLayer1Pending(run.status, run) ? (
                 <article className="panel layer layer1 layer-pending">
-                  <h2>编剧 · 分镜与脚本</h2>
+                  <h2>Writer · storyboard & script</h2>
                   <LayerSpinner
-                    label="编剧生成中"
+                    label="Writer running"
                     hint={
                       run.status === "draft"
-                        ? "任务已排队，正在调用 LLM 写分镜与台词…"
-                        : "正在生成分镜、脚本、角色与对白（约半分钟）…"
+                        ? "Queued; calling LLM for storyboard and lines…"
+                        : "Generating storyboard, script, characters, dialogue (~30s)…"
                     }
                   />
                 </article>
@@ -265,7 +300,7 @@ export default function App() {
 
               {run.layer2_output ? (
                 <article className="panel layer layer2">
-                  <h2>导演 · 多段 Seedance 计划</h2>
+                  <h2>Director · multi-segment Seedance plan</h2>
                   {run.layer2_output.director_notes ? (
                     <p className="small muted">{run.layer2_output.director_notes}</p>
                   ) : null}
@@ -273,7 +308,7 @@ export default function App() {
                     <div key={p.segment_id} className="prompt-block">
                       <span className="mono small">{p.segment_id}</span>
                       {p.segment_goal ? (
-                        <p className="small muted">目标：{p.segment_goal}</p>
+                        <p className="small muted">Goal: {p.segment_goal}</p>
                       ) : null}
                       <p>{p.prompt}</p>
                       <p className="small muted">
@@ -288,17 +323,17 @@ export default function App() {
                 </article>
               ) : isDirectorPending(run.status, run) ? (
                 <article className="panel layer layer2 layer-pending">
-                  <h2>导演 · 多段 Seedance 计划</h2>
+                  <h2>Director · multi-segment Seedance plan</h2>
                   <LayerSpinner
-                    label="导演生成中"
-                    hint="根据编剧 JSON 生成多段 Seedance 英文 prompt 与结构化参数…"
+                    label="Director running"
+                    hint="Building English Seedance prompts and structured params from writer JSON…"
                   />
                 </article>
               ) : null}
 
               {run.makeup_output ? (
                 <article className="panel layer makeup">
-                  <h2>定妆 · 真人向参考图</h2>
+                  <h2>Makeup · photoreal reference stills</h2>
                   <div className="img-row">
                     {run.makeup_output.character_image_urls.map((u) => (
                       <a key={u} href={u} target="_blank" rel="noreferrer">
@@ -308,7 +343,7 @@ export default function App() {
                   </div>
                   {run.makeup_output.makeup_prompts?.length ? (
                     <details className="small muted">
-                      <summary>定妆英文 prompt</summary>
+                      <summary>Makeup prompts (EN)</summary>
                       <ul>
                         {run.makeup_output.makeup_prompts.map((t, i) => (
                           <li key={i}>{t}</li>
@@ -319,17 +354,17 @@ export default function App() {
                 </article>
               ) : isMakeupPending(run.status, run) ? (
                 <article className="panel layer makeup layer-pending">
-                  <h2>定妆 · 真人向参考图</h2>
+                  <h2>Makeup · photoreal reference stills</h2>
                   <LayerSpinner
-                    label="定妆生成中"
-                    hint="LLM 规划定妆 prompt 后，由 ModelArk 图像接口逐张出图，可能需要数十秒…"
+                    label="Makeup running"
+                    hint="LLM plans prompts; ModelArk images.generate per still—may take tens of seconds…"
                   />
                 </article>
               ) : null}
 
               {run.layer3_output ? (
                 <article className="panel layer layer3">
-                  <h2>成片 · 拼接与上传</h2>
+                  <h2>Merge · stitch & upload</h2>
                   <video
                     className="video"
                     src={run.layer3_output.video_url}
@@ -344,7 +379,7 @@ export default function App() {
                   </p>
                   {run.layer3_output.meta?.upload_error ? (
                     <p className="small error">
-                      Storage：{run.layer3_output.meta.upload_error}
+                      Storage: {run.layer3_output.meta.upload_error}
                     </p>
                   ) : null}
                   {run.layer3_output.meta?.product_note ? (
@@ -353,10 +388,10 @@ export default function App() {
                 </article>
               ) : isLayer3Pending(run.status, run) ? (
                 <article className="panel layer layer3 layer-pending">
-                  <h2>成片 · 拼接与上传</h2>
+                  <h2>Merge · stitch & upload</h2>
                   <LayerSpinner
-                    label="多段 Seedance 渲染与拼接"
-                    hint="逐段生成、本机 ffmpeg 拼接、上传 Butterbase Storage；总耗时常为数分钟…"
+                    label="Multi-segment Seedance render & stitch"
+                    hint="Per-segment gen, local ffmpeg merge, Butterbase Storage upload—often several minutes…"
                   />
                 </article>
               ) : null}

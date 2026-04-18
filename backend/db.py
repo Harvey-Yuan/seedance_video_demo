@@ -18,6 +18,8 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
     cols = {row[1] for row in cur.fetchall()}
     if "makeup_output" not in cols:
         conn.execute("ALTER TABLE runs ADD COLUMN makeup_output TEXT")
+    if "seedance_job" not in cols:
+        conn.execute("ALTER TABLE runs ADD COLUMN seedance_job TEXT")
 
 
 def init_db() -> None:
@@ -35,6 +37,7 @@ def init_db() -> None:
               makeup_output TEXT,
               layer2_output TEXT,
               layer3_output TEXT,
+              seedance_job TEXT,
               error_code TEXT,
               error_message TEXT,
               created_at TEXT NOT NULL,
@@ -70,8 +73,9 @@ def create_run(drama_input: str, user_id: str | None = None) -> str:
             INSERT INTO runs (
               id, user_id, status, drama_input,
               layer1_output, makeup_output, layer2_output, layer3_output,
+              seedance_job,
               error_code, error_message, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)
+            ) VALUES (?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)
             """,
             (run_id, user_id, "draft", drama_input, now, now),
         )
@@ -87,6 +91,7 @@ def update_run(
     makeup_output: dict[str, Any] | None = None,
     layer2_output: dict[str, Any] | None = None,
     layer3_output: dict[str, Any] | None = None,
+    seedance_job: dict[str, Any] | None = None,
     error_code: str | None = None,
     error_message: str | None = None,
     clear_errors: bool = False,
@@ -111,6 +116,9 @@ def update_run(
     if layer3_output is not None:
         fields.append("layer3_output = ?")
         values.append(json.dumps(layer3_output, ensure_ascii=False))
+    if seedance_job is not None:
+        fields.append("seedance_job = ?")
+        values.append(json.dumps(seedance_job, ensure_ascii=False))
     if error_code is not None:
         fields.append("error_code = ?")
         values.append(error_code)
@@ -135,7 +143,7 @@ def get_run(run_id: str) -> dict[str, Any] | None:
     if not row:
         return None
     d = dict(row)
-    for key in ("layer1_output", "makeup_output", "layer2_output", "layer3_output"):
+    for key in ("layer1_output", "makeup_output", "layer2_output", "layer3_output", "seedance_job"):
         raw = d.get(key)
         if raw:
             d[key] = json.loads(raw)

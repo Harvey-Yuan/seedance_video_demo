@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://seedance.local/contracts/layer2.json",
   "title": "DirectorSeedancePlan",
-  "description": "导演输出：多段 Seedance 参数；不包含定妆图 URL（由 makeup_output 提供）。",
+  "description": "Director output: multi-segment Seedance params; no makeup image URLs (see makeup_output).",
   "type": "object",
   "required": ["seedance_prompts"],
   "properties": {
     "director_notes": {
       "type": "string",
-      "description": "可选：气质标签、反转节拍等（非硬编码台词）"
+      "description": "Optional: tone tags, beat notes (not hard-coded dialogue)"
     },
     "seedance_prompts": {
       "type": "array",

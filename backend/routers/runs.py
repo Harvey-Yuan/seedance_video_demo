@@ -1,16 +1,19 @@
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi.responses import JSONResponse
 
 from .. import db
 from ..api_schemas import CreateRunBody, CreateRunResponse
+from ..contracts import Layer2Output, MakeupOutput
 from ..pipeline_agents import (
     run_director_agent,
     run_full_pipeline,
     run_makeup_agent,
-    run_seedance_merge_agent,
+    run_seedance_merge_background,
     run_writer_agent,
 )
+from ..settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,31 @@ def _envelope(run_id: str) -> dict:
     return {"ok": row["status"] != "failed", "run": row}
 
 
+def _seedance_job_running(row: dict) -> bool:
+    if row.get("status") != "layer3_running":
+        return False
+    job = row.get("seedance_job") or {}
+    return job.get("phase") in ("queued", "generating", "merging", "uploading")
+
+
+async def _seedance_task_safe(run_id: str):
+    try:
+        await run_seedance_merge_background(run_id)
+    except Exception:
+        logger.exception("seedance background crashed")
+        db.update_run(
+            run_id,
+            status="failed",
+            error_code="INTERNAL",
+            error_message="seedance background crashed",
+        )
+        row = db.get_run(run_id)
+        job = dict(row.get("seedance_job") or {}) if row else {}
+        job["phase"] = "failed"
+        job["error_message"] = "seedance background crashed"
+        db.update_run(run_id, seedance_job=job)
+
+
 async def _run_safe_full(run_id: str):
     try:
         await run_full_pipeline(run_id)
@@ -44,7 +72,7 @@ async def _run_safe_full(run_id: str):
 
 @router.post("/runs", response_model=CreateRunResponse)
 async def create_run(body: CreateRunBody):
-    """仅创建任务（draft），不自动跑流水线；请依次调用 writer / director / makeup / seedance。"""
+    """Create run (draft) only; does not auto-run pipeline—call writer / director / makeup / seedance in order."""
     if not body.drama.strip():
         raise HTTPException(status_code=400, detail="drama must not be empty")
     run_id = db.create_run(body.drama.strip(), user_id=None)
@@ -54,8 +82,8 @@ async def create_run(body: CreateRunBody):
 @router.post("/runs/{run_id}/pipeline")
 async def create_run_pipeline(run_id: str, background_tasks: BackgroundTasks):
     """
-    可选「一键」：后台顺序执行四步（与前端连调四个 API 等价）。
-    需当前为 draft 且无各阶段输出；返回 202 仅表示已排队。
+    Optional one-shot: run four steps in the background (same as four separate API calls from the client).
+    Requires status=draft and empty stage outputs; 202 means queued only.
     """
     row = _run_row(run_id)
     if row["status"] != "draft":
@@ -117,8 +145,39 @@ async def step_makeup(run_id: str):
     return _envelope(run_id)
 
 
+@router.get("/runs/{run_id}/seedance/status")
+def seedance_status(run_id: str):
+    """Poll Seedance job: per-segment URLs, merge/upload progress, final video_url."""
+    row = _run_row(run_id)
+    job = row.get("seedance_job")
+    l3 = row.get("layer3_output")
+    if l3 and row.get("status") == "done":
+        meta = l3.get("meta") or {}
+        return {
+            "phase": "done",
+            "total_segments": len(meta.get("segment_urls") or []),
+            "segment_urls": meta.get("segment_urls"),
+            "video_url": l3.get("video_url"),
+            "run_status": row.get("status"),
+            "layer3": l3,
+        }
+    if not job:
+        return {
+            "phase": "idle",
+            "run_status": row.get("status"),
+            "message": "No job yet; POST /api/runs/{id}/seedance first",
+        }
+    out = dict(job)
+    out["run_status"] = row.get("status")
+    return out
+
+
 @router.post("/runs/{run_id}/seedance")
-async def step_seedance(run_id: str):
+async def step_seedance(run_id: str, background_tasks: BackgroundTasks):
+    """
+    Accepts work and returns **202**; background generates segments, merges, uploads.
+    Poll GET /api/runs/{id}/seedance/status until phase=done, then GET /api/runs/{id} for full run.
+    """
     row = _run_row(run_id)
     if not row.get("layer2_output") or not row.get("makeup_output"):
         raise HTTPException(
@@ -127,13 +186,40 @@ async def step_seedance(run_id: str):
         )
     if row.get("layer3_output"):
         raise HTTPException(409, detail="layer3_output already exists")
-    if row.get("status") == "layer3_running":
-        raise HTTPException(409, detail="seedance already in progress")
-    try:
-        await run_seedance_merge_agent(run_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    return _envelope(run_id)
+    if _seedance_job_running(row):
+        raise HTTPException(409, detail="seedance job already running")
+
+    settings = get_settings()
+    layer2 = Layer2Output.model_validate(row["layer2_output"])
+    makeup = MakeupOutput.model_validate(row["makeup_output"])
+    char_urls = list(makeup.character_image_urls)
+    layer2_dict = dict(row["layer2_output"])
+    layer2_dict["character_image_urls"] = char_urls
+    n = len(layer2.seedance_prompts)
+    init_job = {
+        "phase": "queued",
+        "total_segments": n,
+        "segment_urls": [],
+        "current_segment_index": -1,
+        "model": settings.seedance_video_model,
+    }
+    db.update_run(
+        run_id,
+        status="layer3_running",
+        layer2_output=layer2_dict,
+        seedance_job=init_job,
+        clear_errors=True,
+    )
+    background_tasks.add_task(_seedance_task_safe, run_id)
+    return JSONResponse(
+        status_code=202,
+        content={
+            "accepted": True,
+            "run_id": run_id,
+            "status_url": f"/api/runs/{run_id}/seedance/status",
+            "poll_hint": "GET status_url every 2–5s until phase is done or failed",
+        },
+    )
 
 
 @router.get("/runs/{run_id}")

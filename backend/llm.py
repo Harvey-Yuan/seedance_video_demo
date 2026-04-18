@@ -65,7 +65,7 @@ async def generate_image_url(
     timeout: float = 120.0,
 ) -> str | None:
     """Optional DALL-E style call; returns None if unsupported or misconfigured."""
-    # Butterbase 当前仅暴露 chat/completions；仅 Butterbase 密钥时不要打 OpenAI 生图端点
+    # Butterbase only exposes chat/completions; with Butterbase-only keys, skip OpenAI image endpoint
     if settings.uses_butterbase_llm() and not settings.openai_api_key:
         return None
     if not settings.openai_api_key:
