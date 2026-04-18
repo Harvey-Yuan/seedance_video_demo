@@ -1,0 +1,161 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Quicksand:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Dating Story Studio — pastel pixel design system. All HSL. */
+
+@layer base {
+  :root {
+    /* Core surfaces */
+    --background: 340 60% 97%;
+    --foreground: 280 30% 22%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 280 30% 22%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 280 30% 22%;
+
+    /* Pastel pink primary */
+    --primary: 340 80% 72%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 340 90% 85%;
+
+    /* Lavender secondary */
+    --secondary: 270 70% 88%;
+    --secondary-foreground: 270 40% 30%;
+
+    --muted: 320 40% 94%;
+    --muted-foreground: 280 15% 50%;
+
+    /* Baby blue accent */
+    --accent: 200 80% 85%;
+    --accent-foreground: 210 50% 25%;
+
+    /* Peach */
+    --peach: 18 90% 82%;
+    --cream: 40 80% 95%;
+
+    --destructive: 0 80% 70%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 320 50% 88%;
+    --input: 320 50% 92%;
+    --ring: 340 80% 72%;
+
+    --radius: 1rem;
+
+    /* Sidebar */
+    --sidebar-background: 320 60% 95%;
+    --sidebar-foreground: 280 30% 30%;
+    --sidebar-primary: 340 80% 72%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 270 70% 90%;
+    --sidebar-accent-foreground: 270 40% 30%;
+    --sidebar-border: 320 50% 85%;
+    --sidebar-ring: 340 80% 72%;
+
+    /* Gradients */
+    --gradient-romance: linear-gradient(135deg, hsl(340 90% 88%), hsl(270 80% 90%), hsl(200 80% 90%));
+    --gradient-sunset: linear-gradient(135deg, hsl(340 90% 80%), hsl(18 90% 82%));
+    --gradient-dream: linear-gradient(180deg, hsl(340 60% 97%), hsl(270 60% 96%));
+
+    /* Pixel shadows (hard-edged) */
+    --shadow-pixel: 4px 4px 0 0 hsl(340 50% 75%);
+    --shadow-pixel-sm: 2px 2px 0 0 hsl(340 50% 75%);
+    --shadow-pixel-lavender: 4px 4px 0 0 hsl(270 50% 75%);
+    --shadow-soft: 0 8px 24px -8px hsl(340 80% 72% / 0.4);
+    --shadow-glow: 0 0 32px hsl(340 90% 80% / 0.6);
+  }
+
+  .dark {
+    --background: 280 30% 12%;
+    --foreground: 340 40% 95%;
+    --card: 280 25% 16%;
+    --card-foreground: 340 40% 95%;
+    --popover: 280 25% 16%;
+    --popover-foreground: 340 40% 95%;
+    --primary: 340 80% 72%;
+    --primary-foreground: 280 30% 12%;
+    --secondary: 270 30% 25%;
+    --secondary-foreground: 340 40% 95%;
+    --muted: 280 20% 20%;
+    --muted-foreground: 320 20% 70%;
+    --accent: 200 50% 35%;
+    --accent-foreground: 340 40% 95%;
+    --destructive: 0 70% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 280 20% 25%;
+    --input: 280 20% 25%;
+    --ring: 340 80% 72%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Quicksand', system-ui, sans-serif;
+    background-image:
+      radial-gradient(circle at 20% 10%, hsl(340 90% 90% / 0.4), transparent 40%),
+      radial-gradient(circle at 80% 80%, hsl(270 80% 92% / 0.4), transparent 40%),
+      radial-gradient(circle at 50% 50%, hsl(200 80% 92% / 0.2), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  .font-pixel {
+    font-family: 'Press Start 2P', monospace;
+    letter-spacing: 0.02em;
+  }
+}
+
+@layer components {
+  /* Pixel-bordered card: hard outline + offset shadow */
+  .pixel-card {
+    @apply bg-card rounded-2xl border-[3px] border-foreground/10;
+    box-shadow: var(--shadow-pixel);
+  }
+
+  .pixel-card-lavender {
+    @apply bg-card rounded-2xl border-[3px] border-foreground/10;
+    box-shadow: var(--shadow-pixel-lavender);
+  }
+
+  .pixel-border {
+    @apply border-[3px] border-foreground/15 rounded-xl;
+    box-shadow: var(--shadow-pixel-sm);
+  }
+
+  .pixel-grid-bg {
+    background-image:
+      linear-gradient(hsl(340 50% 90% / 0.3) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(340 50% 90% / 0.3) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .gradient-romance {
+    background: var(--gradient-romance);
+  }
+  .gradient-sunset {
+    background: var(--gradient-sunset);
+  }
+  .gradient-dream {
+    background: var(--gradient-dream);
+  }
+}
+
+@layer utilities {
+  .pixelated {
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+  }
+  .text-shadow-pixel {
+    text-shadow: 2px 2px 0 hsl(var(--primary) / 0.3);
+  }
+}
