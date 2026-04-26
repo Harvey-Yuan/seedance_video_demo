@@ -1,0 +1,25 @@
+Deploy DailyReel slides only to Butterbase frontend hosting
+===========================================================
+
+What gets deployed
+  - Static zip: slides deck + pixel PNGs under /slides/, plus root index.html
+    that redirects to /slides/
+  - Framework type: "static" (not react-vite)
+
+Package (from repo root)
+  chmod +x scripts/package-butterbase-slides.sh
+  ./scripts/package-butterbase-slides.sh
+  → build/butterbase-slides.zip (gitignored)
+
+Butterbase (MCP or dashboard)
+  1) create_frontend_deployment { app_id: "<your_app_id>", framework: "static" }
+  2) PUT the zip to uploadUrl with Content-Type: application/zip
+  3) start_frontend_deployment { app_id, deployment_id }
+
+Live URL pattern
+  https://<subdomain>.butterbase.dev/slides/
+
+Important
+  - One frontend deployment per app replaces the previous site on that app
+    (free plan: single deployment slot). If you need the full React app AND
+    slides, use a second Butterbase app or host slides elsewhere.
